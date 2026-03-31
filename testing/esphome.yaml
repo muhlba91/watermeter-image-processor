@@ -1,0 +1,103 @@
+---
+substitutions:
+  meter_id: water-meter # match this with METER_ID
+  friendly_name: Water Meter # match this with METER_NAME
+  image_topic: tele/${meter_id}/image # match this with BROKER_TOPIC_SUBSCRIPTION_TEMPLATE
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  mqtt_broker_address: !secret mqtt_broker_address
+  ota_password: !secret ota_password
+  sleep_duration: 6h
+
+esphome:
+  name: ${meter_id}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -10
+    then:
+      - component.update: battery_sensor
+      - delay: 1s
+      - lambda: |-
+          id(meter_camera).request_image(esphome::camera::CameraRequester::IDLE);
+
+esp32:
+  board: esp32cam
+  framework:
+    type: esp-idf
+
+ota:
+  - platform: esphome
+    password: ${ota_password}
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+psram:
+
+# update with your Wi-Fi credentials
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  reboot_timeout: 0s
+
+# update with your EMQX broker configuration
+mqtt:
+  id: mqtt_client
+  broker: ${mqtt_broker_address}
+  topic_prefix: tele/${meter_id}
+  discovery: true
+  discovery_prefix: homeassistant
+
+esp32_camera:
+  id: meter_camera
+  external_clock:
+    pin: GPIO0
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO26
+    scl: GPIO27
+  data_pins:
+    - GPIO5
+    - GPIO18
+    - GPIO19
+    - GPIO21
+    - GPIO36
+    - GPIO39
+    - GPIO34
+    - GPIO35
+  vsync_pin: GPIO25
+  href_pin: GPIO23
+  pixel_clock_pin: GPIO22
+  power_down_pin: GPIO32
+  name: Raw Image
+  resolution: 800x600
+  jpeg_quality: 10
+  frame_buffer_count: 1
+  frame_buffer_location: PSRAM
+  on_image:
+    then:
+      - lambda: |-
+          id(mqtt_client).publish(
+            std::string("${image_topic}"),
+            std::string(reinterpret_cast<const char *>(image.data), image.length));
+          ESP_LOGD("custom", "Image sent to MQTT");
+      # - delay: 1s
+      # - deep_sleep.enter: ds
+
+sensor:
+  - platform: adc
+    pin: GPIO33
+    id: battery_sensor
+    name: "Battery"
+    device_class: battery
+    unit_of_measurement: "%"
+    entity_category: "diagnostic"
+    update_interval: never
+    filters:
+      - multiply: 0.033 # match this with the voltage divider used for battery measurement
+
+deep_sleep:
+  id: ds
+  # run_duration: 60s
+  # sleep_duration: ${sleep_duration}

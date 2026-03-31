@@ -1,0 +1,16 @@
+{
+  "name": "@muhlba91/github-infrastructure",
+  "version": "0.0.0",
+  "description": "GitHub Infrastructure",
+  "main": "build/main/index.js",
+  "typings": "build/main/index.d.ts",
+  "repository": "https://github.com/muhlba91/github-infrastructure",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "yarn@4.10.3",
+  "devDependencies": {
+    "all-contributors-cli": "^6.26.1"
+  }
+}
