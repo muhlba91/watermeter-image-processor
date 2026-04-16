@@ -3,7 +3,7 @@ module github.com/muhlba91/watermeter-image-processor
 go 1.26.0
 
 require (
-	github.com/aws/aws-sdk-go-v2/config v1.32.14
+	github.com/aws/aws-sdk-go-v2/config v1.32.15
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.14
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/caarlos0/env/v11 v11.4.0
