@@ -8,10 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
@@ -22,6 +20,9 @@ const healthCheckTimeout = 2 * time.Second
 
 // expectedDigits defines the number of digits expected in the water meter reading.
 const expectedDigits = 5
+
+// listPageSize defines the number of models to retrieve per page when listing Gemini models.
+const listPageSize = 100
 
 // Gemini is a struct that implements the ImageAI interface using the Gemini library.
 type Gemini struct {
@@ -34,7 +35,11 @@ type Gemini struct {
 // NewGemini creates a new instance of Gemini.
 // configuration: The configuration data required to initialize the Gemini client.
 func NewGemini(configuration *configuration.Data) (ai.ImageAI, error) {
-	client, cErr := genai.NewClient(context.Background(), option.WithAPIKey(configuration.GeminiAPIKey))
+	config := &genai.ClientConfig{
+		APIKey:  configuration.GeminiAPIKey,
+		Backend: genai.BackendGeminiAPI,
+	}
+	client, cErr := genai.NewClient(context.Background(), config)
 	if cErr != nil {
 		return nil, cErr
 	}
@@ -50,31 +55,28 @@ func (o *Gemini) HealthCheck() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), healthCheckTimeout)
 	defer cancel()
 
-	iter := o.client.ListModels(ctx)
-	_, err := iter.Next()
+	_, err := o.client.Models.List(ctx, &genai.ListModelsConfig{})
 	return err == nil
 }
 
 // CheckModel checks if the specified Gemini model exists and is available for processing images.
 // ctx: The context for the operation, allowing for cancellation and timeouts.
 func (o *Gemini) CheckModel(ctx context.Context) bool {
-	requestedModel := fmt.Sprintf("models/%s", o.model)
+	requestedModel := o.model
 	logrus.Debugf("checking gemini model '%s'", requestedModel)
 
-	iter := o.client.ListModels(ctx)
-	for {
-		model, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			logrus.Errorf("error listing gemini models: %v", err)
-			return false
-		}
+	resp, err := o.client.Models.List(ctx, &genai.ListModelsConfig{
+		PageSize: listPageSize,
+	})
+	if err != nil {
+		logrus.Errorf("error listing gemini models: %v", err)
+		return false
+	}
 
+	for _, model := range resp.Items {
 		logrus.Debugf("found gemini model: %s", model.Name)
 
-		if model.Name == requestedModel {
+		if model.Name == requestedModel || model.Name == "models/"+requestedModel {
 			logrus.Debugf("gemini model '%s' is available", requestedModel)
 			return true
 		}
@@ -92,21 +94,39 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 		return nil, errors.New("gemini model is not available")
 	}
 
-	model := o.client.GenerativeModel(o.model)
-	model.SetTemperature(0.0)
+	temperature := float32(0.0)
+	config := &genai.GenerateContentConfig{
+		Temperature: &temperature,
+	}
 
-	prompt := []genai.Part{
-		genai.ImageData("jpeg", image),
-		genai.Text("Read the 5-digit number on the water meter. Output ONLY the digits."),
+	contents := []*genai.Content{
+		{
+			Role: "user",
+			Parts: []*genai.Part{
+				{
+					InlineData: &genai.Blob{
+						MIMEType: "image/jpeg",
+						Data:     image,
+					},
+				},
+				{
+					Text: "Read the 5-digit number on the water meter. Output ONLY the digits.",
+				},
+			},
+		},
 	}
 
 	logrus.Debugf("processing image with gemini model: %s", o.model)
-	resp, err := model.GenerateContent(ctx, prompt...)
+	resp, err := o.client.Models.GenerateContent(ctx, o.model, contents, config)
 	if err != nil {
 		return nil, err
 	}
 
-	result := o.cleanResult(fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0]))
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return nil, errors.New("empty response from gemini")
+	}
+
+	result := o.cleanResult(resp.Candidates[0].Content.Parts[0].Text)
 	return &result, nil
 }
 
