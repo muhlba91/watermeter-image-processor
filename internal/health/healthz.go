@@ -10,24 +10,24 @@ import (
 func (s *Server) healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	status := http.StatusOK
 	components := map[string]string{
-		"mqtt":    "up",
-		"ai":      "up",
-		"storage": "up",
+		"mqtt":    valueUp,
+		"ai":      valueUp,
+		"storage": valueUp,
 	}
 
 	if !s.pubsub.IsConnected() {
 		status = http.StatusServiceUnavailable
-		components["mqtt"] = "down"
+		components["mqtt"] = valueDown
 	}
 
 	if !s.aiProvider.HealthCheck() {
 		status = http.StatusServiceUnavailable
-		components["ai"] = "down"
+		components["ai"] = valueDown
 	}
 
 	if !s.uploader.HealthCheck() {
 		status = http.StatusServiceUnavailable
-		components["storage"] = "down"
+		components["storage"] = valueDown
 	}
 
 	w.Header().Set("Content-Type", "application/json")

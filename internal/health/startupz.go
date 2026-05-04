@@ -8,29 +8,27 @@ import (
 
 // startupzHandler handles the /startupz endpoint and returns the startup status of the application, including the status of its components.
 // w: The HTTP response writer.
-//
-//nolint:goconst // The response is simple and does not require a constant.
 func (s *Server) startupzHandler(w http.ResponseWriter, _ *http.Request) {
 	status := http.StatusOK
 	components := map[string]string{
-		"mqtt":    "up",
-		"ai":      "up",
-		"storage": "up",
+		"mqtt":    valueUp,
+		"ai":      valueUp,
+		"storage": valueUp,
 	}
 
 	if !s.pubsub.IsConnected() {
 		status = http.StatusServiceUnavailable
-		components["mqtt"] = "down"
+		components["mqtt"] = valueDown
 	}
 
 	if !s.aiProvider.HealthCheck() || !s.aiProvider.CheckModel(context.Background()) {
 		status = http.StatusServiceUnavailable
-		components["ai"] = "down"
+		components["ai"] = valueDown
 	}
 
 	if !s.uploader.HealthCheck() {
 		status = http.StatusServiceUnavailable
-		components["storage"] = "down"
+		components["storage"] = valueDown
 	}
 
 	w.Header().Set("Content-Type", "application/json")
