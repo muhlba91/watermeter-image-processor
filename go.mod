@@ -9,7 +9,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/disintegration/imaging v1.6.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.0
 	google.golang.org/genai v1.68.0
 )
 
