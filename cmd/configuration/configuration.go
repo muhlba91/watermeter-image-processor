@@ -30,7 +30,7 @@ type Data struct {
 	// GeminiAPIKey is the API key for the Gemini server to connect to for image processing
 	GeminiAPIKey string `env:"GEMINI_API_KEY"`
 	// GeminiModel is the name of the Gemini model to be used for image processing
-	GeminiModel string `env:"GEMINI_MODEL" envDefault:"gemini-3.1-flash-lite-preview"`
+	GeminiModel string `env:"GEMINI_MODEL" envDefault:"gemini-3.5-flash-lite"`
 	// SCWRegion is the Scaleway region to use for the S3 client, which is required for connecting to Scaleway's S3-compatible object storage service
 	SCWRegion *string `env:"SCW_REGION" envDefault:"fr-par"`
 	// SCWAccessKey is the access key to use when connecting to Scaleway's S3-compatible object storage service, which is required for authentication
