@@ -10,7 +10,7 @@ require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/sirupsen/logrus v1.10.2
-	google.golang.org/genai v1.70.0
+	google.golang.org/genai v1.71.0
 )
 
 require (
