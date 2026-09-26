@@ -15,6 +15,7 @@ Water Meter Image Processor is a Go-based service designed to process images fro
 ## Features
 
 - **AI-Powered OCR**: Supports multiple AI providers — Google Gemini, OpenAI, Anthropic, Mistral, and any OpenAI-compatible proxy (e.g., LiteLLM, Ollama, vLLM) — to interpret water meter readings from images.
+- **Smart Image Preprocessing**: Automatically detects the meter's digit display (by the red decimal wheels' hue) and crops, upscales, and enhances contrast/sharpness before sending it to the AI provider, improving reading accuracy on dim or low-resolution photos.
 - **MQTT Integration**: Subscribes to an image topic and publishes the processed readings.
 - **Home Assistant Discovery**: Automatically creates a sensor in Home Assistant for easy monitoring.
 - **Image Storage**: Persists processed images to a local file path (default) or Scaleway Object Storage (S3 compatible).
@@ -52,9 +53,10 @@ Configure the application using the following environment variables:
 
 Use `MODEL_PROVIDER` to select the active provider. Only the variables for the chosen provider need to be set.
 
-| Variable         | Description                                                                         | Default  |
-| ---------------- | ----------------------------------------------------------------------------------- | -------- |
-| `MODEL_PROVIDER` | AI provider to use: `gemini`, `openai`, `anthropic`, `mistral`, or `openai_compat`. | `gemini` |
+| Variable                | Description                                                                                                                               | Default  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `MODEL_PROVIDER`        | AI provider to use: `gemini`, `openai`, `anthropic`, `mistral`, or `openai_compat`.                                                       | `gemini` |
+| `MODEL_CHECK_CACHE_TTL` | How long a provider's model-availability check is cached before being re-verified, instead of re-listing models on every processed image. | `5m`     |
 
 #### Google Gemini (`gemini`)
 
