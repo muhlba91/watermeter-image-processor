@@ -1,25 +1,18 @@
-package gemini
+package ai
 
 import (
 	"context"
 	"errors"
-	"fmt"
-	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/genai"
 
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
-	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
 )
 
 // healthCheckTimeout defines the timeout duration for health checks related to the S3 client.
 const healthCheckTimeout = 2 * time.Second
-
-// expectedDigits defines the number of digits expected in the water meter reading.
-const expectedDigits = 5
 
 // listPageSize defines the number of models to retrieve per page when listing Gemini models.
 const listPageSize = 100
@@ -34,7 +27,7 @@ type Gemini struct {
 
 // NewGemini creates a new instance of Gemini.
 // configuration: The configuration data required to initialize the Gemini client.
-func NewGemini(configuration *configuration.Data) (ai.ImageAI, error) {
+func NewGemini(configuration *configuration.Data) (ImageAI, error) {
 	config := &genai.ClientConfig{
 		APIKey:  configuration.GeminiAPIKey,
 		Backend: genai.BackendGeminiAPI,
@@ -96,7 +89,8 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 
 	temperature := float32(0.0)
 	config := &genai.GenerateContentConfig{
-		Temperature: &temperature,
+		Temperature:     &temperature,
+		MaxOutputTokens: maxResponseTokens,
 	}
 
 	contents := []*genai.Content{
@@ -110,7 +104,7 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 					},
 				},
 				{
-					Text: "Read the 5-digit number on the water meter. Output ONLY the digits.",
+					Text: getPrompt(),
 				},
 			},
 		},
@@ -126,27 +120,9 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 		return nil, errors.New("empty response from gemini")
 	}
 
-	result := o.cleanResult(resp.Candidates[0].Content.Parts[0].Text)
+	responseText := resp.Candidates[0].Content.Parts[0].Text
+	logrus.Debugf("raw gemini response: %q", responseText)
+
+	result := cleanResult(responseText)
 	return &result, nil
-}
-
-// cleanResult takes the raw result from the Gemini model and extracts the relevant digits, ensuring that the output is in the expected format for water meter readings.
-// result: The raw result string obtained from the Gemini model, which may contain extraneous characters and formatting.
-func (o *Gemini) cleanResult(result string) string {
-	re := regexp.MustCompile(`[^0-9]`)
-	digits := re.ReplaceAllString(result, "")
-
-	if len(digits) != expectedDigits {
-		logrus.Errorf("unexpected result length: got %d digits, expected 5. result: '%s'", len(digits), result)
-		return digits
-	}
-
-	formatted := fmt.Sprintf("%s.%s", digits[:3], digits[3:])
-	val, err := strconv.ParseFloat(formatted, 64)
-	if err != nil {
-		logrus.Warnf("error parsing float from cleaned result: %v", err)
-		return formatted
-	}
-
-	return strconv.FormatFloat(val, 'f', -1, 64)
 }

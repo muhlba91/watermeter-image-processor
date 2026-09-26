@@ -11,7 +11,7 @@ import (
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 	"github.com/muhlba91/watermeter-image-processor/cmd/logging"
 	"github.com/muhlba91/watermeter-image-processor/internal/health"
-	"github.com/muhlba91/watermeter-image-processor/internal/image/ai/gemini"
+	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/publisher"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/subscriber"
@@ -39,7 +39,7 @@ func main() {
 	if uErr != nil {
 		logrus.Fatalf("failed to initialize scaleway uploader: %v", uErr)
 	}
-	aiProvider, err := gemini.NewGemini(&cfg)
+	aiProvider, err := ai.NewProvider(&cfg)
 	if err != nil {
 		logrus.Fatalf("failed to initialize image processor: %v", err)
 	}
@@ -48,7 +48,7 @@ func main() {
 	if pErr != nil {
 		logrus.Fatalf("failed to initialize mqtt publisher: %v", pErr)
 	}
-	handler := handler.NewHandler(publisher, uploader, aiProvider)
+	handler := handler.NewHandler(&cfg, publisher, uploader, aiProvider)
 	subscriber, err := subscriber.NewSubscriber(handler)
 	if err != nil {
 		logrus.Fatalf("failed to initialize mqtt subscriber: %v", err)

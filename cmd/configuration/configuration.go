@@ -27,10 +27,34 @@ type Data struct {
 	BrokerUsername *string `env:"BROKER_USERNAME"`
 	// BrokerPassword is the password to use when connecting to the MQTT broker
 	BrokerPassword *string `env:"BROKER_PASSWORD"`
+	// ModelProvider is the AI provider to use for image processing (gemini or openai)
+	ModelProvider string `env:"MODEL_PROVIDER" envDefault:"gemini"`
+	// ImageRoiCropEnabled controls whether incoming images are automatically cropped to the detected
+	// digit strip (based on the red decimal wheels' hue) before being enhanced and sent to the AI
+	// provider. Disable it to fall back to sending the full, uncropped image.
+	ImageRoiCropEnabled bool `env:"IMAGE_ROI_CROP_ENABLED" envDefault:"true"`
 	// GeminiAPIKey is the API key for the Gemini server to connect to for image processing
 	GeminiAPIKey string `env:"GEMINI_API_KEY"`
 	// GeminiModel is the name of the Gemini model to be used for image processing
 	GeminiModel string `env:"GEMINI_MODEL" envDefault:"gemini-3.5-flash-lite"`
+	// OpenAIAPIKey is the API key for the OpenAI server to connect to for image processing
+	OpenAIAPIKey string `env:"OPENAI_API_KEY"`
+	// OpenAIModel is the name of the OpenAI model to be used for image processing
+	OpenAIModel string `env:"OPENAI_MODEL" envDefault:"gpt-6-luna"`
+	// AnthropicAPIKey is the API key for the Anthropic server to connect to for image processing
+	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
+	// AnthropicModel is the name of the Anthropic model to be used for image processing
+	AnthropicModel string `env:"ANTHROPIC_MODEL" envDefault:"claude-haiku-4-5"`
+	// MistralAPIKey is the API key for the Mistral server to connect to for image processing
+	MistralAPIKey string `env:"MISTRAL_API_KEY"`
+	// MistralModel is the name of the Mistral model to be used for image processing
+	MistralModel string `env:"MISTRAL_MODEL" envDefault:"mistral-medium-latest"`
+	// OpenAICompatURL is the base URL of the OpenAI-compatible proxy server to connect to for image processing
+	OpenAICompatURL string `env:"OPENAI_COMPAT_URL" envDefault:"http://localhost:4000"`
+	// OpenAICompatAPIKey is the optional API key for the OpenAI-compatible proxy server
+	OpenAICompatAPIKey string `env:"OPENAI_COMPAT_API_KEY"`
+	// OpenAICompatModel is the name of the model to be used via the OpenAI-compatible proxy for image processing
+	OpenAICompatModel string `env:"OPENAI_COMPAT_MODEL" envDefault:"gemini-flash-lite-latest"`
 	// SCWRegion is the Scaleway region to use for the S3 client, which is required for connecting to Scaleway's S3-compatible object storage service
 	SCWRegion *string `env:"SCW_REGION" envDefault:"fr-par"`
 	// SCWAccessKey is the access key to use when connecting to Scaleway's S3-compatible object storage service, which is required for authentication

@@ -8,13 +8,13 @@
 [![](https://img.shields.io/github/all-contributors/muhlba91/watermeter-image-processor?color=ee8449&style=for-the-badge)](#contributors)
 <a href="https://www.buymeacoffee.com/muhlba91" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="28" width="150"></a>
 
-Water Meter Image Processor is a Go-based service designed to process images from water meters (e.g., captured via ESP32-CAM), use Google Gemini AI to read the meter value, and publish the results to MQTT for Home Assistant. It integrates seamlessly with Home Assistant via MQTT Discovery.
+Water Meter Image Processor is a Go-based service designed to process images from water meters (e.g., captured via ESP32-CAM), use an AI provider to read the meter value, and publish the results to MQTT for Home Assistant. It integrates seamlessly with Home Assistant via MQTT Discovery.
 
 ---
 
 ## Features
 
-- **AI-Powered OCR**: Uses Google Gemini (e.g., `gemini-1.5-flash`) to interpret water meter readings from images.
+- **AI-Powered OCR**: Supports multiple AI providers — Google Gemini, OpenAI, Anthropic, Mistral, and any OpenAI-compatible proxy (e.g., LiteLLM, Ollama, vLLM) — to interpret water meter readings from images.
 - **MQTT Integration**: Subscribes to an image topic and publishes the processed readings.
 - **Home Assistant Discovery**: Automatically creates a sensor in Home Assistant for easy monitoring.
 - **Cloud Storage Backup**: Optionally uploads processed images to Scaleway Object Storage (S3 compatible).
@@ -26,26 +26,85 @@ Water Meter Image Processor is a Go-based service designed to process images fro
 
 Configure the application using the following environment variables:
 
-| Variable                              | Description                                         | Default                               |
-| ------------------------------------- | --------------------------------------------------- | ------------------------------------- |
-| `METER_ID`                            | Unique identifier for the meter.                    | `water-meter`                         |
-| `METER_NAME`                          | Display name for the meter.                         | `Water Meter`                         |
-| `METER_MODEL`                         | Model description of the meter.                     | `ESP32 Water Meter`                   |
-| `BROKER_ADDRESS`                      | MQTT broker address (e.g., `tcp://localhost:1883`). | `tcp://localhost:1883`                |
-| `BROKER_TOPIC_SUBSCRIPTION_TEMPLATE`  | Template for image subscription topic.              | `tele/%s/image`                       |
-| `BROKER_TOPIC_PUBLISH_TEMPLATE`       | Template for usage publication topic.               | `stat/%s/water/usage/state`           |
-| `BROKER_CLIENT_ID`                    | MQTT client ID.                                     | *(optional)*                          |
-| `BROKER_USERNAME`                     | MQTT username.                                      | *(optional)*                          |
-| `BROKER_PASSWORD`                     | MQTT password.                                      | *(optional)*                          |
-| `GEMINI_API_KEY`                      | Google Gemini API key.                              | *(required)*                          |
-| `GEMINI_MODEL`                        | Gemini model to use.                                | `gemini-3.1-flash-lite-preview`       |
-| `SCW_REGION`                          | Scaleway region for S3 backup.                      | `fr-par`                              |
-| `SCW_ACCESS_KEY`                      | Scaleway access key.                                | *(optional)*                          |
-| `SCW_SECRET_KEY`                      | Scaleway secret key.                                | *(optional)*                          |
-| `SCW_BUCKET`                          | Scaleway S3 bucket name.                            | *(optional)*                          |
-| `SCW_BUCKET_PATH`                     | Path template within the bucket.                    | `watermeter/%s/`                      |
-| `HEALTHZ_HOST`                        | Host for the health server.                         | `0.0.0.0`                             |
-| `HEALTHZ_PORT`                        | Port for the health server.                         | `8080`                                |
+### General
+
+| Variable                              | Description                                                   | Default                         |
+| ------------------------------------- | ------------------------------------------------------------- | ------------------------------- |
+| `METER_ID`                            | Unique identifier for the meter.                              | `water-meter`                   |
+| `METER_NAME`                          | Display name for the meter.                                   | `Water Meter`                   |
+| `METER_MODEL`                         | Model description of the meter.                               | `ESP32 Water Meter`             |
+| `BROKER_ADDRESS`                      | MQTT broker address (e.g., `tcp://localhost:1883`).           | `tcp://localhost:1883`          |
+| `BROKER_TOPIC_SUBSCRIPTION_TEMPLATE`  | Template for image subscription topic.                        | `tele/%s/image`                 |
+| `BROKER_TOPIC_PUBLISH_TEMPLATE`       | Template for usage publication topic.                         | `stat/%s/water/usage/state`     |
+| `BROKER_CLIENT_ID`                    | MQTT client ID.                                               | *(optional)*                    |
+| `BROKER_USERNAME`                     | MQTT username.                                                | *(optional)*                    |
+| `BROKER_PASSWORD`                     | MQTT password.                                                | *(optional)*                    |
+| `HEALTHZ_HOST`                        | Host for the health server.                                   | `0.0.0.0`                       |
+| `HEALTHZ_PORT`                        | Port for the health server.                                   | `8080`                          |
+
+### Image Processing
+
+| Variable                 | Description                                                                                                                                                                                                             | Default |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `IMAGE_ROI_CROP_ENABLED` | Automatically detect the red decimal digit wheels by hue and crop/upscale the image to the inferred digit strip before enhancement. Falls back to the full image if no digit strip is detected, or if this is disabled. | `true`  |
+
+### AI Provider
+
+Use `MODEL_PROVIDER` to select the active provider. Only the variables for the chosen provider need to be set.
+
+| Variable         | Description                                                                         | Default  |
+| ---------------- | ----------------------------------------------------------------------------------- | -------- |
+| `MODEL_PROVIDER` | AI provider to use: `gemini`, `openai`, `anthropic`, `mistral`, or `openai_compat`. | `gemini` |
+
+#### Google Gemini (`gemini`)
+
+| Variable          | Description                  | Default                  |
+| ----------------- | ---------------------------- | ------------------------ |
+| `GEMINI_API_KEY`  | Google Gemini API key.       | *(required)*             |
+| `GEMINI_MODEL`    | Gemini model to use.         | `gemini-3.5-flash-lite`  |
+
+#### OpenAI (`openai`)
+
+| Variable         | Description             | Default       |
+| ---------------- | ----------------------- | ------------- |
+| `OPENAI_API_KEY` | OpenAI API key.         | *(required)*  |
+| `OPENAI_MODEL`   | OpenAI model to use.    | `gpt-6-luna`  |
+
+#### Anthropic (`anthropic`)
+
+| Variable             | Description                 | Default              |
+| -------------------- | --------------------------- | -------------------- |
+| `ANTHROPIC_API_KEY`  | Anthropic API key.          | *(required)*         |
+| `ANTHROPIC_MODEL`    | Anthropic model to use.     | `claude-haiku-4-5`   |
+
+#### Mistral (`mistral`)
+
+Uses Mistral's OpenAI-compatible chat completions API. Only vision-capable chat models are supported (e.g. `mistral-small-latest`, `pixtral-large-latest`) — the dedicated Document AI/OCR models (`mistral-ocr-*`) use a different, instruction-less API and cannot be used here.
+
+| Variable          | Description           | Default                 |
+| ----------------- | --------------------- | ----------------------- |
+| `MISTRAL_API_KEY` | Mistral API key.      | *(required)*            |
+| `MISTRAL_MODEL`   | Mistral model to use. | `mistral-medium-latest` |
+
+#### OpenAI-Compatible Proxy (`openai_compat`)
+
+Use this provider to connect to any OpenAI API-compatible endpoint such as [LiteLLM](https://github.com/BerriAI/litellm), [Ollama](https://ollama.com/), or [vLLM](https://github.com/vllm-project/vllm).
+
+| Variable                | Description                                          | Default                    |
+| ----------------------- | ---------------------------------------------------- | -------------------------- |
+| `OPENAI_COMPAT_URL`     | Base URL of the OpenAI-compatible endpoint.          | `http://localhost:4000`    |
+| `OPENAI_COMPAT_API_KEY` | API key for the endpoint (if required).              | *(optional)*               |
+| `OPENAI_COMPAT_MODEL`   | Model name to use via the compatible endpoint.       | `gemini-flash-lite-latest` |
+
+### Cloud Storage (Scaleway)
+
+| Variable          | Description                          | Default           |
+| ----------------- | ------------------------------------ | ----------------- |
+| `SCW_REGION`      | Scaleway region for S3 backup.       | `fr-par`          |
+| `SCW_ACCESS_KEY`  | Scaleway access key.                 | *(optional)*      |
+| `SCW_SECRET_KEY`  | Scaleway secret key.                 | *(optional)*      |
+| `SCW_BUCKET`      | Scaleway S3 bucket name.             | *(optional)*      |
+| `SCW_BUCKET_PATH` | Path template within the bucket.     | `watermeter/%s/`  |
 
 ---
 
@@ -53,13 +112,62 @@ Configure the application using the following environment variables:
 
 ### Docker Run
 
-To run the processor using Docker, you need a Google Gemini API key and an MQTT broker.
+#### Google Gemini (default)
 
 ```shell
 docker run -d \
   --name watermeter-image-processor \
   -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
   -e GEMINI_API_KEY="your-gemini-api-key" \
+  -e METER_ID="my-water-meter" \
+  ghcr.io/muhlba91/watermeter-image-processor:latest
+```
+
+#### OpenAI
+
+```shell
+docker run -d \
+  --name watermeter-image-processor \
+  -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
+  -e MODEL_PROVIDER="openai" \
+  -e OPENAI_API_KEY="your-openai-api-key" \
+  -e METER_ID="my-water-meter" \
+  ghcr.io/muhlba91/watermeter-image-processor:latest
+```
+
+#### Anthropic
+
+```shell
+docker run -d \
+  --name watermeter-image-processor \
+  -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
+  -e MODEL_PROVIDER="anthropic" \
+  -e ANTHROPIC_API_KEY="your-anthropic-api-key" \
+  -e METER_ID="my-water-meter" \
+  ghcr.io/muhlba91/watermeter-image-processor:latest
+```
+
+#### Mistral
+
+```shell
+docker run -d \
+  --name watermeter-image-processor \
+  -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
+  -e MODEL_PROVIDER="mistral" \
+  -e MISTRAL_API_KEY="your-mistral-api-key" \
+  -e METER_ID="my-water-meter" \
+  ghcr.io/muhlba91/watermeter-image-processor:latest
+```
+
+#### OpenAI-Compatible Proxy (e.g., Ollama)
+
+```shell
+docker run -d \
+  --name watermeter-image-processor \
+  -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
+  -e MODEL_PROVIDER="openai_compat" \
+  -e OPENAI_COMPAT_URL="http://ollama:11434/v1" \
+  -e OPENAI_COMPAT_MODEL="llava" \
   -e METER_ID="my-water-meter" \
   ghcr.io/muhlba91/watermeter-image-processor:latest
 ```

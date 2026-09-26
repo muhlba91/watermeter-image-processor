@@ -7,6 +7,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/sirupsen/logrus"
 
+	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 	internalimg "github.com/muhlba91/watermeter-image-processor/internal/image"
 	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/publisher"
@@ -22,16 +23,18 @@ type Handler struct {
 }
 
 // NewHandler creates a new instance of the Handler.
+// cfg: The configuration data, used to configure image conversion.
 // publisher: The MQTT publisher to publish results.
 // uploader: The object uploader to upload images.
 // aiProvider: The AI provider to process images.
 func NewHandler(
+	cfg *configuration.Data,
 	publisher *publisher.Publisher,
 	uploader *object.Uploader,
 	aiProvider ai.ImageAI,
 ) *Handler {
 	return &Handler{
-		converter: internalimg.NewConverter(),
+		converter: internalimg.NewConverter(cfg.ImageRoiCropEnabled),
 		ai:        aiProvider,
 		publisher: publisher,
 		uploader:  uploader,
