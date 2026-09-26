@@ -73,7 +73,7 @@ func cleanResult(result string) string {
 	formatted := fmt.Sprintf("%s.%s", digits[:blackDigits], digits[blackDigits:])
 	val, err := strconv.ParseFloat(formatted, 64)
 	if err != nil {
-		logrus.Warnf("error parsing float from cleaned result: %v", err)
+		logrus.Errorf("error parsing float from cleaned result: %v", err)
 		return formatted
 	}
 

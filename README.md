@@ -17,7 +17,7 @@ Water Meter Image Processor is a Go-based service designed to process images fro
 - **AI-Powered OCR**: Supports multiple AI providers — Google Gemini, OpenAI, Anthropic, Mistral, and any OpenAI-compatible proxy (e.g., LiteLLM, Ollama, vLLM) — to interpret water meter readings from images.
 - **MQTT Integration**: Subscribes to an image topic and publishes the processed readings.
 - **Home Assistant Discovery**: Automatically creates a sensor in Home Assistant for easy monitoring.
-- **Cloud Storage Backup**: Optionally uploads processed images to Scaleway Object Storage (S3 compatible).
+- **Image Storage**: Persists processed images to a local file path (default) or Scaleway Object Storage (S3 compatible).
 - **Health Monitoring**: Includes a `healthz` server for liveness, readiness, and startup checks.
 
 ---
@@ -96,15 +96,31 @@ Use this provider to connect to any OpenAI API-compatible endpoint such as [Lite
 | `OPENAI_COMPAT_API_KEY` | API key for the endpoint (if required).              | *(optional)*               |
 | `OPENAI_COMPAT_MODEL`   | Model name to use via the compatible endpoint.       | `gemini-flash-lite-latest` |
 
-### Cloud Storage (Scaleway)
+### Image Storage
 
-| Variable          | Description                          | Default           |
-| ----------------- | ------------------------------------ | ----------------- |
-| `SCW_REGION`      | Scaleway region for S3 backup.       | `fr-par`          |
-| `SCW_ACCESS_KEY`  | Scaleway access key.                 | *(optional)*      |
-| `SCW_SECRET_KEY`  | Scaleway secret key.                 | *(optional)*      |
-| `SCW_BUCKET`      | Scaleway S3 bucket name.             | *(optional)*      |
-| `SCW_BUCKET_PATH` | Path template within the bucket.     | `watermeter/%s/`  |
+Processed images can optionally be persisted for later review. Use `STORAGE_PROVIDER` to select where — exactly one of the two providers is ever active. Storage is a best-effort side effect: a write failure is logged and ignored, and never blocks or fails image processing.
+
+| Variable           | Description                                    | Default |
+| ------------------ | ---------------------------------------------- | ------- |
+| `STORAGE_PROVIDER` | Storage provider to use: `file` or `scaleway`. | `file`  |
+
+#### Local File (`file`)
+
+| Variable            | Description                                                        | Default                      |
+| ------------------- | ------------------------------------------------------------------ | ---------------------------- |
+| `FILE_STORAGE_PATH` | Directory images are written to. `%s` is replaced with `METER_ID`. | `/tmp/watermeter-images/%s/` |
+
+#### Scaleway (`scaleway`)
+
+`SCW_REGION`, `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_BUCKET` must all be set, or startup fails.
+
+| Variable          | Description                      | Default          |
+| ----------------- | -------------------------------- | ---------------- |
+| `SCW_REGION`      | Scaleway region for S3 backup.   | `fr-par`         |
+| `SCW_ACCESS_KEY`  | Scaleway access key.             | *(required)*     |
+| `SCW_SECRET_KEY`  | Scaleway secret key.             | *(required)*     |
+| `SCW_BUCKET`      | Scaleway S3 bucket name.         | *(required)*     |
+| `SCW_BUCKET_PATH` | Path template within the bucket. | `watermeter/%s/` |
 
 ---
 
@@ -168,6 +184,21 @@ docker run -d \
   -e MODEL_PROVIDER="openai_compat" \
   -e OPENAI_COMPAT_URL="http://ollama:11434/v1" \
   -e OPENAI_COMPAT_MODEL="llava" \
+  -e METER_ID="my-water-meter" \
+  ghcr.io/muhlba91/watermeter-image-processor:latest
+```
+
+#### Scaleway Image Storage
+
+```shell
+docker run -d \
+  --name watermeter-image-processor \
+  -e BROKER_ADDRESS="tcp://mqtt-broker:1883" \
+  -e GEMINI_API_KEY="your-gemini-api-key" \
+  -e STORAGE_PROVIDER="scaleway" \
+  -e SCW_ACCESS_KEY="your-scaleway-access-key" \
+  -e SCW_SECRET_KEY="your-scaleway-secret-key" \
+  -e SCW_BUCKET="your-scaleway-bucket" \
   -e METER_ID="my-water-meter" \
   ghcr.io/muhlba91/watermeter-image-processor:latest
 ```

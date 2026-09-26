@@ -20,6 +20,8 @@ type Mistral struct {
 	client *openai.Client
 	// model is the name of the Mistral model to be used for image processing.
 	model string
+	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
+	modelCache *modelCache
 }
 
 // NewMistral creates a new instance of Mistral.
@@ -31,8 +33,9 @@ func NewMistral(configuration *configuration.Data) (ImageAI, error) {
 	)
 
 	return &Mistral{
-		client: &client,
-		model:  configuration.MistralModel,
+		client:     &client,
+		model:      configuration.MistralModel,
+		modelCache: newModelCache(ProviderMistral, configuration.ModelCheckCacheTTL),
 	}, nil
 }
 
@@ -48,6 +51,14 @@ func (o *Mistral) HealthCheck() bool {
 // CheckModel checks if the specified Mistral model exists and is available for processing images.
 // ctx: The context for the operation, allowing for cancellation and timeouts.
 func (o *Mistral) CheckModel(ctx context.Context) bool {
+	return o.modelCache.checkModelCached(func() bool {
+		return o.checkModelUncached(ctx)
+	})
+}
+
+// checkModelUncached performs the actual Mistral model-availability lookup.
+// ctx: The context for the operation, allowing for cancellation and timeouts.
+func (o *Mistral) checkModelUncached(ctx context.Context) bool {
 	requestedModel := o.model
 	logrus.Debugf("checking mistral model '%s'", requestedModel)
 

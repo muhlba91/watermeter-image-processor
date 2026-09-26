@@ -11,7 +11,7 @@ import (
 	internalimg "github.com/muhlba91/watermeter-image-processor/internal/image"
 	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/publisher"
-	"github.com/muhlba91/watermeter-image-processor/internal/scaleway/object"
+	"github.com/muhlba91/watermeter-image-processor/internal/storage"
 )
 
 // Handler is responsible for processing incoming MQTT messages.
@@ -19,25 +19,25 @@ type Handler struct {
 	converter *internalimg.Converter
 	ai        ai.ImageAI
 	publisher *publisher.Publisher
-	uploader  *object.Uploader
+	writer    storage.Writer
 }
 
 // NewHandler creates a new instance of the Handler.
 // cfg: The configuration data, used to configure image conversion.
 // publisher: The MQTT publisher to publish results.
-// uploader: The object uploader to upload images.
+// writer: The storage provider to persist images to.
 // aiProvider: The AI provider to process images.
 func NewHandler(
 	cfg *configuration.Data,
 	publisher *publisher.Publisher,
-	uploader *object.Uploader,
+	writer storage.Writer,
 	aiProvider ai.ImageAI,
 ) *Handler {
 	return &Handler{
 		converter: internalimg.NewConverter(cfg.ImageRoiCropEnabled),
 		ai:        aiProvider,
 		publisher: publisher,
-		uploader:  uploader,
+		writer:    writer,
 	}
 }
 
@@ -66,7 +66,7 @@ func (h *Handler) Message(_ mqtt.Client, msg mqtt.Message) {
 
 	go func() {
 		defer wg.Done()
-		h.uploader.Upload(ctx, bytes)
+		h.writer.Write(ctx, bytes)
 	}()
 
 	go func() {
@@ -90,7 +90,7 @@ func (h *Handler) processImage(ctx context.Context, data []byte) {
 
 	pErr := h.publisher.Publish(h.publisher.Topics.Status, false, *result)
 	if pErr != nil {
-		logrus.Errorf("failed to publish meter value: %v", pErr)
+		logrus.Errorf("failed to publish meter value '%s': %v", *result, pErr)
 	} else {
 		logrus.Infof("published meter value: %s", *result)
 	}

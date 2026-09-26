@@ -3,6 +3,7 @@ package object
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,9 +29,20 @@ type Uploader struct {
 }
 
 // NewUploader creates a new instance of the Uploader.
-// configuration: The configuration data for the uploader, which may include credentials and other settings.
+// It requires SCWRegion, SCWAccessKey, SCWSecretKey, and SCWBucket to all be set.
+// configuration: The configuration data for the uploader, which must include full Scaleway credentials.
 func NewUploader(configuration *configuration.Data) (*Uploader, error) {
-	s3client := buildS3Client(configuration)
+	if configuration.SCWRegion == nil || configuration.SCWAccessKey == nil || configuration.SCWSecretKey == nil ||
+		configuration.SCWBucket == nil {
+		return nil, errors.New(
+			"missing scaleway configuration: SCW_REGION, SCW_ACCESS_KEY, SCW_SECRET_KEY, and SCW_BUCKET must all be set",
+		)
+	}
+
+	s3client, err := buildS3Client(configuration)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Uploader{
 		client: s3client,
@@ -41,10 +53,6 @@ func NewUploader(configuration *configuration.Data) (*Uploader, error) {
 
 // HealthCheck verifies the overall health of the S3 client by attempting to list objects in the configured bucket.
 func (u *Uploader) HealthCheck() bool {
-	if u.client == nil {
-		return true
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), healthCheckTimeout)
 	defer cancel()
 
@@ -56,16 +64,11 @@ func (u *Uploader) HealthCheck() bool {
 	return err == nil
 }
 
-// Upload uploads the given data to Scaleway's S3-compatible object storage service.
+// Write uploads the given data to Scaleway's S3-compatible object storage service.
 // ctx: The context for the operation.
 // data: The byte slice representing the data to be uploaded.
-func (u *Uploader) Upload(ctx context.Context, data []byte) {
-	if u.client == nil {
-		logrus.Error("scaleway upload is not configured")
-		return
-	}
-
-	key := fmt.Sprintf("%s/%s.jpg", u.path, time.Now().Format("2006/01/02/15-04"))
+func (u *Uploader) Write(ctx context.Context, data []byte) {
+	key := fmt.Sprintf("%s/%s.jpg", u.path, time.Now().Format("2006/01/02/15-04-05"))
 
 	logrus.Debugf("uploading object to scaleway: bucket=%s, key=%s, size=%d bytes", *u.bucket, key, len(data))
 	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{
@@ -81,16 +84,8 @@ func (u *Uploader) Upload(ctx context.Context, data []byte) {
 }
 
 // buildS3Client builds and returns an S3 client configured for Scaleway using the provided configuration data.
-// configuration: The configuration data for the uploader, which may include credentials and other settings.
-func buildS3Client(configuration *configuration.Data) *s3.Client {
-	if configuration.SCWRegion == nil || configuration.SCWAccessKey == nil || configuration.SCWSecretKey == nil ||
-		configuration.SCWBucket == nil {
-		logrus.Error(
-			"scaleway upload disabled: missing SCW_REGION, SCW_ACCESS_KEY, SCW_SECRET_KEY, or SCW_BUCKET environment variables",
-		)
-		return nil
-	}
-
+// configuration: The configuration data for the uploader, which includes the Scaleway credentials.
+func buildS3Client(configuration *configuration.Data) (*s3.Client, error) {
 	endpoint := fmt.Sprintf("https://s3.%s.scw.cloud", *configuration.SCWRegion)
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion(*configuration.SCWRegion),
@@ -102,8 +97,8 @@ func buildS3Client(configuration *configuration.Data) *s3.Client {
 		)),
 	)
 	if err != nil {
-		logrus.Fatalf("unable to load config for scaleway: %v", err)
+		return nil, fmt.Errorf("unable to load config for scaleway: %w", err)
 	}
 
-	return s3.NewFromConfig(cfg)
+	return s3.NewFromConfig(cfg), nil
 }

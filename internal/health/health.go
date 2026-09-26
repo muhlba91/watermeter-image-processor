@@ -12,7 +12,7 @@ import (
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 	"github.com/muhlba91/watermeter-image-processor/internal/image/ai"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt"
-	"github.com/muhlba91/watermeter-image-processor/internal/scaleway/object"
+	"github.com/muhlba91/watermeter-image-processor/internal/storage"
 )
 
 // shutdownTimeout defines the duration for graceful shutdown of the health check server.
@@ -24,7 +24,7 @@ const readHeaderTimeout = 3 * time.Second
 // Server represents the health check server.
 type Server struct {
 	address    string
-	uploader   *object.Uploader
+	writer     storage.Writer
 	aiProvider ai.ImageAI
 	pubsub     *mqtt.PubSub
 	server     *http.Server
@@ -32,18 +32,18 @@ type Server struct {
 
 // NewServer creates a new health check server.
 // configuration: The configuration data for the server.
-// uploader: The object uploader for checking the health of the storage.
+// writer: The storage provider for checking the health of image persistence.
 // aiProvider: The AI provider for checking the health of the image processing.
 // pubsub: The pubsub provider for checking the health of the MQTT connection.
 func NewServer(
 	configuration *configuration.Data,
-	uploader *object.Uploader,
+	writer storage.Writer,
 	aiProvider ai.ImageAI,
 	pubsub *mqtt.PubSub,
 ) *Server {
 	return &Server{
 		address:    fmt.Sprintf("%s:%d", configuration.HealthzHost, configuration.HealthzPort),
-		uploader:   uploader,
+		writer:     writer,
 		aiProvider: aiProvider,
 		pubsub:     pubsub,
 	}

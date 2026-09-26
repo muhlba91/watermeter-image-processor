@@ -18,6 +18,8 @@ type OpenAICompat struct {
 	client *openai.Client
 	// model is the name of the model to be requested from the proxy.
 	model string
+	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
+	modelCache *modelCache
 }
 
 // NewOpenAICompat creates a new instance of OpenAICompat.
@@ -33,8 +35,9 @@ func NewOpenAICompat(configuration *configuration.Data) (ImageAI, error) {
 	client := openai.NewClient(opts...)
 
 	return &OpenAICompat{
-		client: &client,
-		model:  configuration.OpenAICompatModel,
+		client:     &client,
+		model:      configuration.OpenAICompatModel,
+		modelCache: newModelCache(ProviderOpenAICompat, configuration.ModelCheckCacheTTL),
 	}, nil
 }
 
@@ -50,6 +53,14 @@ func (o *OpenAICompat) HealthCheck() bool {
 // CheckModel checks if the specified model is available via the OpenAI-compatible proxy.
 // ctx: The context for the operation, allowing for cancellation and timeouts.
 func (o *OpenAICompat) CheckModel(ctx context.Context) bool {
+	return o.modelCache.checkModelCached(func() bool {
+		return o.checkModelUncached(ctx)
+	})
+}
+
+// checkModelUncached performs the actual OpenAI-compatible model-availability lookup.
+// ctx: The context for the operation, allowing for cancellation and timeouts.
+func (o *OpenAICompat) checkModelUncached(ctx context.Context) bool {
 	requestedModel := o.model
 	logrus.Debugf("checking openai_compat model '%s'", requestedModel)
 

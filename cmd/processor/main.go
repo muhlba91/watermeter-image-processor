@@ -15,7 +15,7 @@ import (
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/publisher"
 	"github.com/muhlba91/watermeter-image-processor/internal/mqtt/subscriber"
-	"github.com/muhlba91/watermeter-image-processor/internal/scaleway/object"
+	"github.com/muhlba91/watermeter-image-processor/internal/storage"
 	"github.com/muhlba91/watermeter-image-processor/pkg/handler"
 )
 
@@ -35,9 +35,9 @@ func main() {
 
 	cfg := configuration.Init()
 
-	uploader, uErr := object.NewUploader(&cfg)
-	if uErr != nil {
-		logrus.Fatalf("failed to initialize scaleway uploader: %v", uErr)
+	writer, wErr := storage.NewProvider(&cfg)
+	if wErr != nil {
+		logrus.Fatalf("failed to initialize storage provider: %v", wErr)
 	}
 	aiProvider, err := ai.NewProvider(&cfg)
 	if err != nil {
@@ -48,7 +48,7 @@ func main() {
 	if pErr != nil {
 		logrus.Fatalf("failed to initialize mqtt publisher: %v", pErr)
 	}
-	handler := handler.NewHandler(&cfg, publisher, uploader, aiProvider)
+	handler := handler.NewHandler(&cfg, publisher, writer, aiProvider)
 	subscriber, err := subscriber.NewSubscriber(handler)
 	if err != nil {
 		logrus.Fatalf("failed to initialize mqtt subscriber: %v", err)
@@ -60,7 +60,7 @@ func main() {
 	}
 	publisher.PublishInitialStatus()
 
-	healthServer := health.NewServer(&cfg, uploader, aiProvider, pubsub)
+	healthServer := health.NewServer(&cfg, writer, aiProvider, pubsub)
 	healthServer.Start()
 
 	aiProvider.CheckModel(context.Background())

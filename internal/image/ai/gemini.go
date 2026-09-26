@@ -23,6 +23,8 @@ type Gemini struct {
 	client *genai.Client
 	// model is the name of the Gemini model to be used for image processing.
 	model string
+	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
+	modelCache *modelCache
 }
 
 // NewGemini creates a new instance of Gemini.
@@ -38,8 +40,9 @@ func NewGemini(configuration *configuration.Data) (ImageAI, error) {
 	}
 
 	return &Gemini{
-		client: client,
-		model:  configuration.GeminiModel,
+		client:     client,
+		model:      configuration.GeminiModel,
+		modelCache: newModelCache(ProviderGemini, configuration.ModelCheckCacheTTL),
 	}, nil
 }
 
@@ -55,6 +58,14 @@ func (o *Gemini) HealthCheck() bool {
 // CheckModel checks if the specified Gemini model exists and is available for processing images.
 // ctx: The context for the operation, allowing for cancellation and timeouts.
 func (o *Gemini) CheckModel(ctx context.Context) bool {
+	return o.modelCache.checkModelCached(func() bool {
+		return o.checkModelUncached(ctx)
+	})
+}
+
+// checkModelUncached performs the actual Gemini model-availability lookup.
+// ctx: The context for the operation, allowing for cancellation and timeouts.
+func (o *Gemini) checkModelUncached(ctx context.Context) bool {
 	requestedModel := o.model
 	logrus.Debugf("checking gemini model '%s'", requestedModel)
 

@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 	log "github.com/sirupsen/logrus"
@@ -33,6 +34,8 @@ type Data struct {
 	// digit strip (based on the red decimal wheels' hue) before being enhanced and sent to the AI
 	// provider. Disable it to fall back to sending the full, uncropped image.
 	ImageRoiCropEnabled bool `env:"IMAGE_ROI_CROP_ENABLED" envDefault:"true"`
+	// ModelCheckCacheTTL defines how long a provider's model-availability check result is cached before being re-verified
+	ModelCheckCacheTTL time.Duration `env:"MODEL_CHECK_CACHE_TTL" envDefault:"5m"`
 	// GeminiAPIKey is the API key for the Gemini server to connect to for image processing
 	GeminiAPIKey string `env:"GEMINI_API_KEY"`
 	// GeminiModel is the name of the Gemini model to be used for image processing
@@ -55,6 +58,8 @@ type Data struct {
 	OpenAICompatAPIKey string `env:"OPENAI_COMPAT_API_KEY"`
 	// OpenAICompatModel is the name of the model to be used via the OpenAI-compatible proxy for image processing
 	OpenAICompatModel string `env:"OPENAI_COMPAT_MODEL" envDefault:"gemini-flash-lite-latest"`
+	// StorageProvider selects where processed images are persisted
+	StorageProvider string `env:"STORAGE_PROVIDER" envDefault:"file"`
 	// SCWRegion is the Scaleway region to use for the S3 client, which is required for connecting to Scaleway's S3-compatible object storage service
 	SCWRegion *string `env:"SCW_REGION" envDefault:"fr-par"`
 	// SCWAccessKey is the access key to use when connecting to Scaleway's S3-compatible object storage service, which is required for authentication
@@ -65,6 +70,8 @@ type Data struct {
 	SCWBucket *string `env:"SCW_BUCKET"`
 	// SCWBucketPath is the path within the bucket to use when connecting to Scaleway's S3-compatible object storage service, which is optional and defaults to "watermeter/"
 	SCWBucketPath string `env:"SCW_BUCKET_PATH" envDefault:"watermeter/%s/"`
+	// FileStoragePath is the directory processed images are written to when StorageProvider is "file"
+	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"/tmp/watermeter-images/%s/"`
 	// HealthzHost is the host for the healthz server to listen on
 	HealthzHost string `env:"HEALTHZ_HOST" envDefault:"0.0.0.0"`
 	// HealthzPort is the port for the healthz server to listen on

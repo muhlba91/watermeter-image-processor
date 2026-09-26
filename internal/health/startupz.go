@@ -26,7 +26,7 @@ func (s *Server) startupzHandler(w http.ResponseWriter, _ *http.Request) {
 		components["ai"] = valueDown
 	}
 
-	if !s.uploader.HealthCheck() {
+	if !s.writer.HealthCheck() {
 		status = http.StatusServiceUnavailable
 		components["storage"] = valueDown
 	}
