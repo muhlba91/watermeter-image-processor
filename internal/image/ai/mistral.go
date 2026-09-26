@@ -1,12 +1,8 @@
 package ai
 
 import (
-	"context"
-	"errors"
-
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
-	"github.com/sirupsen/logrus"
 
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 )
@@ -14,14 +10,14 @@ import (
 // mistralBaseURL is Mistral's OpenAI-compatible API base URL.
 const mistralBaseURL = "https://api.mistral.ai/v1"
 
+// mistralTemperature defines the sampling temperature for the Mistral response. Unlike some
+// reasoning-tier OpenAI models, Mistral's chat models reliably support a custom temperature, so it
+// is pinned to 0 for deterministic, repeatable readings.
+const mistralTemperature = 0.0
+
 // Mistral is a struct that implements the ImageAI interface using Mistral's OpenAI-compatible chat completions API.
 type Mistral struct {
-	// client is the OpenAI-compatible API client pointed at Mistral's endpoint.
-	client *openai.Client
-	// model is the name of the Mistral model to be used for image processing.
-	model string
-	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
-	modelCache *modelCache
+	*openAICompatBase
 }
 
 // NewMistral creates a new instance of Mistral.
@@ -32,65 +28,14 @@ func NewMistral(configuration *configuration.Data) (ImageAI, error) {
 		option.WithAPIKey(configuration.MistralAPIKey),
 	)
 
+	temperature := mistralTemperature
 	return &Mistral{
-		client:     &client,
-		model:      configuration.MistralModel,
-		modelCache: newModelCache(ProviderMistral, configuration.ModelCheckCacheTTL),
+		openAICompatBase: newOpenAICompatBase(
+			&client,
+			configuration.MistralModel,
+			ProviderMistral,
+			&temperature,
+			configuration.ModelCheckCacheTTL,
+		),
 	}, nil
-}
-
-// HealthCheck verifies the overall health of the Mistral system by checking connectivity and responsiveness.
-func (o *Mistral) HealthCheck() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), healthCheckTimeout)
-	defer cancel()
-
-	_, err := o.client.Models.List(ctx)
-	return err == nil
-}
-
-// CheckModel checks if the specified Mistral model exists and is available for processing images.
-// ctx: The context for the operation, allowing for cancellation and timeouts.
-func (o *Mistral) CheckModel(ctx context.Context) bool {
-	return o.modelCache.checkModelCached(func() bool {
-		return o.checkModelUncached(ctx)
-	})
-}
-
-// checkModelUncached performs the actual Mistral model-availability lookup.
-// ctx: The context for the operation, allowing for cancellation and timeouts.
-func (o *Mistral) checkModelUncached(ctx context.Context) bool {
-	requestedModel := o.model
-	logrus.Debugf("checking mistral model '%s'", requestedModel)
-
-	resp, err := o.client.Models.List(ctx)
-	if err != nil {
-		logrus.Errorf("error listing mistral models: %v", err)
-		return false
-	}
-
-	for _, model := range resp.Data {
-		logrus.Debugf("found mistral model: %s", model.ID)
-
-		if model.ID == requestedModel {
-			logrus.Debugf("mistral model '%s' is available", requestedModel)
-			return true
-		}
-	}
-
-	logrus.Warnf("mistral model '%s' is not available", requestedModel)
-	return false
-}
-
-// ProcessImage processes the given image data using the Mistral library and returns the watermeter data.
-// ctx: The context for the operation, allowing for cancellation and timeouts.
-// image: The raw image data to be processed.
-func (o *Mistral) ProcessImage(ctx context.Context, image []byte) (*string, error) {
-	if !o.CheckModel(ctx) {
-		return nil, errors.New("mistral model is not available")
-	}
-
-	// Mistral's chat models (unlike some reasoning-tier OpenAI models) reliably support a custom
-	// temperature, so we pin it to 0 for deterministic, repeatable readings.
-	temperature := 0.0
-	return processImageOpenAICompat(ctx, o.client, o.model, image, ProviderMistral, &temperature)
 }

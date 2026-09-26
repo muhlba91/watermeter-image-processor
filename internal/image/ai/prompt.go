@@ -1,13 +1,6 @@
 package ai
 
-import (
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
-
-	"github.com/sirupsen/logrus"
-)
+import "fmt"
 
 // blackDigits defines the number of black digits (integer part) in the water meter reading.
 const blackDigits = 5
@@ -20,13 +13,6 @@ const expectedDigits = blackDigits + redDigits
 
 // answerMarker delimits the final digit answer from the reasoning that precedes it in the model's response.
 const answerMarker = "ANSWER:"
-
-// maxResponseTokens defines the maximum number of tokens each provider may generate for a response.
-// It must leave enough room for the model to reason about each digit wheel before giving its final
-// answer, per the chain-of-thought prompt below. Reasoning-tier models (e.g. OpenAI's o-series/gpt-5
-// family) additionally spend hidden reasoning tokens out of this same budget before producing any
-// visible output, so this is set generously to avoid truncating the response before it starts.
-const maxResponseTokens = 2048
 
 // getPrompt returns the instruction given to the AI model to process the image of the water meter and extract the numeric value.
 func getPrompt() string {
@@ -47,35 +33,4 @@ func getPrompt() string {
 		answerMarker,
 		expectedDigits,
 	)
-}
-
-// cleanResult takes the raw result from the AI model and extracts the relevant digits, ensuring that the output is in the expected format for water meter readings.
-// result: The raw result string obtained from the AI model, which may contain extraneous characters and formatting.
-func cleanResult(result string) string {
-	answer := result
-	if idx := strings.LastIndex(strings.ToUpper(result), answerMarker); idx != -1 {
-		answer = result[idx+len(answerMarker):]
-	}
-
-	re := regexp.MustCompile(`[^0-9]`)
-	digits := re.ReplaceAllString(answer, "")
-
-	if len(digits) != expectedDigits {
-		logrus.Errorf(
-			"unexpected result length: got %d digits, expected %d. result: '%s'",
-			len(digits),
-			expectedDigits,
-			result,
-		)
-		return digits
-	}
-
-	formatted := fmt.Sprintf("%s.%s", digits[:blackDigits], digits[blackDigits:])
-	val, err := strconv.ParseFloat(formatted, 64)
-	if err != nil {
-		logrus.Errorf("error parsing float from cleaned result: %v", err)
-		return formatted
-	}
-
-	return strconv.FormatFloat(val, 'f', -1, 64)
 }
