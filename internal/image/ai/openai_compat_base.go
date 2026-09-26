@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"github.com/sirupsen/logrus"
 )
 
