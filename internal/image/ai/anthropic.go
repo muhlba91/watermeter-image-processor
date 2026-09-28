@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -99,7 +100,7 @@ func (o *Anthropic) ProcessImage(ctx context.Context, image []byte) (*string, er
 		Temperature: anthropic.Float(anthropicTemperature),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(
-				anthropic.NewImageBlockBase64("image/jpeg", encodedImage),
+				anthropic.NewImageBlockBase64(http.DetectContentType(image), encodedImage),
 				anthropic.NewTextBlock(getPrompt()),
 			),
 		},
@@ -115,6 +116,10 @@ func (o *Anthropic) ProcessImage(ctx context.Context, image []byte) (*string, er
 	responseText := resp.Content[0].AsText().Text
 	logrus.Debugf("raw anthropic response: %q", responseText)
 
-	result := cleanResult(responseText)
+	result, rErr := cleanResult(responseText)
+	if rErr != nil {
+		return nil, rErr
+	}
+
 	return &result, nil
 }

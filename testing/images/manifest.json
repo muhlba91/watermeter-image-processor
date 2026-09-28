@@ -1,0 +1,47 @@
+{
+  "images": [
+    {
+      "file": "../watermeter.jpg",
+      "accept": [
+        "616.60",
+        "616.61"
+      ],
+      "note": "Real worst case: level, very dark (mean luminance 28) and heavily compressed (JPEG quality ~10) 800x600 frame, as the ESP32-CAM produces it at night. The last red wheel is mid-rotation, so both .60 and .61 are correct. All providers must read it."
+    },
+    {
+      "file": "level-dark-q10.jpg",
+      "accept": [
+        "667.38"
+      ],
+      "note": "Stretch target: level close-up, as dark as watermeter.jpg (mean luminance 28) and heavily compressed (JPEG quality 10). In practice harder than watermeter.jpg: currently only gemini reads it reliably, so it shows headroom rather than a pass/fail criterion."
+    },
+    {
+      "file": "level-dark-q30.jpg",
+      "accept": [
+        "667.38"
+      ],
+      "note": "Level close-up, under-exposed to the darkness of watermeter.jpg (mean luminance 28), moderately compressed (JPEG quality 30). All providers must read it."
+    },
+    {
+      "file": "level-lit-q10.jpg",
+      "accept": [
+        "667.38"
+      ],
+      "note": "Level close-up in good lighting, heavily compressed (JPEG quality 10): isolates the effect of JPEG block artifacts. All providers must read it."
+    },
+    {
+      "file": "level-lit-q90.jpg",
+      "accept": [
+        "667.38"
+      ],
+      "note": "Control: level close-up in good lighting, barely compressed (JPEG quality 90), i.e. an ideal ESP32-CAM frame. All providers must read it; a failure here is a regression, not an image-quality problem."
+    },
+    {
+      "file": "tilted-lit-q30.jpg",
+      "accept": [
+        "667.38"
+      ],
+      "note": "Camera mounted ~26 degrees off level, good lighting, moderately compressed (JPEG quality 30). Tilted digit wheels are misread far more often (e.g. merged identical neighbours); run with IMAGE_ROTATION_DEGREES=-26 to verify the rotation setting levels it."
+    }
+  ]
+}

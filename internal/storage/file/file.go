@@ -49,7 +49,7 @@ func (f *Writer) Write(_ context.Context, data []byte) {
 		return
 	}
 
-	path := filepath.Join(dir, now.Format("15-04-05")+".jpg")
+	path := filepath.Join(dir, now.Format("15-04-05")+".png")
 
 	logrus.Debugf("writing image to local storage: %s (size=%d bytes)", path, len(data))
 	if err := os.WriteFile(path, data, filePermissions); err != nil {

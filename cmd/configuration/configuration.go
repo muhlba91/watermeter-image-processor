@@ -30,10 +30,9 @@ type Data struct {
 	BrokerPassword *string `env:"BROKER_PASSWORD"`
 	// ModelProvider is the AI provider to use for image processing (gemini or openai)
 	ModelProvider string `env:"MODEL_PROVIDER" envDefault:"gemini"`
-	// ImageRoiCropEnabled controls whether incoming images are automatically cropped to the detected
-	// digit strip (based on the red decimal wheels' hue) before being enhanced and sent to the AI
-	// provider. Disable it to fall back to sending the full, uncropped image.
-	ImageRoiCropEnabled bool `env:"IMAGE_ROI_CROP_ENABLED" envDefault:"true"`
+	// ImageRotationDegrees is the counter-clockwise rotation, in degrees, applied to every incoming
+	// image to level the digit wheels when the camera is not mounted straight
+	ImageRotationDegrees float64 `env:"IMAGE_ROTATION_DEGREES" envDefault:"0"`
 	// ModelCheckCacheTTL defines how long a provider's model-availability check result is cached before being re-verified
 	ModelCheckCacheTTL time.Duration `env:"MODEL_CHECK_CACHE_TTL" envDefault:"5m"`
 	// GeminiAPIKey is the API key for the Gemini server to connect to for image processing

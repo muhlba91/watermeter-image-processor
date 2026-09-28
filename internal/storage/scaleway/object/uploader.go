@@ -68,7 +68,7 @@ func (u *Uploader) HealthCheck() bool {
 // ctx: The context for the operation.
 // data: The byte slice representing the data to be uploaded.
 func (u *Uploader) Write(ctx context.Context, data []byte) {
-	key := fmt.Sprintf("%s/%s.jpg", u.path, time.Now().Format("2006/01/02/15-04-05"))
+	key := fmt.Sprintf("%s/%s.png", u.path, time.Now().Format("2006/01/02/15-04-05"))
 
 	logrus.Debugf("uploading object to scaleway: bucket=%s, key=%s, size=%d bytes", *u.bucket, key, len(data))
 	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{

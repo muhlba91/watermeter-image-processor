@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -110,7 +111,7 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 			Parts: []*genai.Part{
 				{
 					InlineData: &genai.Blob{
-						MIMEType: "image/jpeg",
+						MIMEType: http.DetectContentType(image),
 						Data:     image,
 					},
 				},
@@ -134,6 +135,10 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 	responseText := resp.Candidates[0].Content.Parts[0].Text
 	logrus.Debugf("raw gemini response: %q", responseText)
 
-	result := cleanResult(responseText)
+	result, rErr := cleanResult(responseText)
+	if rErr != nil {
+		return nil, rErr
+	}
+
 	return &result, nil
 }

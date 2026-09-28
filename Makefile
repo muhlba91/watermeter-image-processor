@@ -26,6 +26,18 @@ build::
 test::
 	go test -v -tags=all -parallel ${TESTPARALLELISM} -timeout 2h -covermode atomic -coverprofile=covprofile ./...
 
+.PHONY: eval
+eval::
+	go run ./cmd/eval run $(EVAL_ARGS)
+
+.PHONY: eval-images
+eval-images::
+	@test -n "$(SRC)" || (echo "usage: make eval-images SRC=<photo.png>" && exit 1)
+	go run ./cmd/eval generate -src $(SRC) -accept 667.38 \
+		-framing level=1160,505,2014,1561@-26 -framing tilted=1260,605,1814,1361 \
+		-variant level:lit:90 -variant level:lit:10 -variant level:dark:30 -variant level:dark:10 \
+		-variant tilted:lit:30
+
 .PHONY: coverage
 coverage::
 	go tool cover -html=covprofile -o coverage.html

@@ -34,7 +34,7 @@ func NewHandler(
 	aiProvider ai.ImageAI,
 ) *Handler {
 	return &Handler{
-		converter: internalimg.NewConverter(cfg.ImageRoiCropEnabled),
+		converter: internalimg.NewConverter(cfg.ImageRotationDegrees),
 		ai:        aiProvider,
 		publisher: publisher,
 		writer:    writer,

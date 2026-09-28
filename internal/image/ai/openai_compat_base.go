@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -90,13 +91,17 @@ func (o *openAICompatBase) checkModelUncached(ctx context.Context) bool {
 
 // ProcessImage sends the image to the provider's chat completions endpoint and returns the watermeter data.
 // ctx: The context for the operation, allowing for cancellation and timeouts.
-// image: The raw JPEG image data to be processed.
+// image: The raw image data to be processed.
 func (o *openAICompatBase) ProcessImage(ctx context.Context, image []byte) (*string, error) {
 	if !o.CheckModel(ctx) {
 		return nil, fmt.Errorf("%s model is not available", o.providerName)
 	}
 
-	imageURL := fmt.Sprintf("data:image/jpeg;base64,%s", base64.StdEncoding.EncodeToString(image))
+	imageURL := fmt.Sprintf(
+		"data:%s;base64,%s",
+		http.DetectContentType(image),
+		base64.StdEncoding.EncodeToString(image),
+	)
 
 	params := openai.ChatCompletionNewParams{
 		Model:               o.model,
@@ -133,6 +138,10 @@ func (o *openAICompatBase) ProcessImage(ctx context.Context, image []byte) (*str
 		resp.Choices[0].FinishReason,
 	)
 
-	result := cleanResult(responseText)
+	result, rErr := cleanResult(responseText)
+	if rErr != nil {
+		return nil, rErr
+	}
+
 	return &result, nil
 }

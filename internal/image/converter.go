@@ -3,21 +3,31 @@ package image
 import (
 	"bytes"
 	"image"
-	"image/jpeg"
+	"image/color"
+	"image/png"
+	"math"
 
 	"github.com/disintegration/imaging"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	// GammaLevel defines the level of gamma adjustment to be applied to the image for shadow lifting.
-	GammaLevel = 2.0
-	// ContrastLevel defines the level of contrast enhancement to be applied to the image.
-	ContrastLevel = 20.0
-	// SharpenLevel defines the level of sharpening to be applied to the image.
-	SharpenLevel = 0.5
-	// QualityLevel defines the quality level for JPEG encoding (0-100).
-	QualityLevel = 85
+	// deblockSigma is the Gaussian blur sigma, in source pixels, used to smooth out the 8x8 block
+	// edges of heavily compressed JPEG frames, so they are not mistaken for digit strokes and are not
+	// magnified by the upscaled digit strip crop.
+	deblockSigma = 0.8
+	// levelsLowPercentile and levelsHighPercentile are the luminance percentiles stretched to black
+	// and white respectively, ignoring a few outlier pixels such as specular highlights.
+	levelsLowPercentile  = 0.01
+	levelsHighPercentile = 0.99
+	// maxChannel is the maximum 8-bit channel value.
+	maxChannel = 255
+	// histogramBins is the number of bins in an 8-bit luminance histogram.
+	histogramBins = 256
+	// lumaR, lumaG and lumaB are the ITU-R BT.601 luma weights.
+	lumaR = 0.299
+	lumaG = 0.587
+	lumaB = 0.114
 
 	// rgba64To8BitShift converts an image/color.RGBA64's 16-bit (0-65535) channel value down to the
 	// 8-bit (0-255) range returned by color.RGBA.
@@ -45,27 +55,27 @@ const (
 	// roiMarginFraction expands the inferred digit-strip bounding box by this fraction on each side,
 	// so digit edges are not clipped by an overly tight detection.
 	roiMarginFraction = 0.15
-	// roiTargetHeight is the minimum height, in pixels, the cropped region of interest is upscaled
-	// to before enhancement, so small digit wheels get more effective resolution for the AI models.
-	roiTargetHeight = 240
 )
 
 // Converter is a struct that provides methods for converting image payloads into enhanced images.
 type Converter struct {
-	// roiCropEnabled controls whether FromPayload attempts to crop to the detected digit strip
-	// before enhancement, or always uses the full image.
-	roiCropEnabled bool
+	// rotationDegrees is the counter-clockwise rotation applied to every incoming image, to level a
+	// camera that is not mounted straight.
+	rotationDegrees float64
 }
 
 // NewConverter creates a new instance of the Converter struct, which can be used to convert image payloads into enhanced images.
-// roiCropEnabled: Whether to crop incoming images to the detected digit strip before enhancement.
-func NewConverter(roiCropEnabled bool) *Converter {
-	return &Converter{roiCropEnabled: roiCropEnabled}
+// rotationDegrees: The counter-clockwise rotation, in degrees, applied to every incoming image (0 to disable).
+func NewConverter(rotationDegrees float64) *Converter {
+	return &Converter{rotationDegrees: rotationDegrees}
 }
 
-// FromPayload takes a byte slice representing an image payload, crops it to the detected digit
-// window when possible, lifts shadows with gamma adjustment, enhances contrast and sharpness, and
-// returns the resulting image.Image object.
+// FromPayload decodes an image payload and prepares it for the AI provider: it levels the image by
+// the configured rotation, smooths out JPEG block artifacts, and stretches the image's own
+// brightness range, which lifts dim frames without the posterization of a fixed gamma/contrast
+// boost. If the digit strip can be located, an enlarged crop of it is stacked below the full image:
+// the models read best with both the full meter for context and the enlarged digits for detail,
+// while a crop alone loses that context whenever its detection is imperfect.
 // payload: The byte slice containing the image data to be converted.
 func (c *Converter) FromPayload(payload []byte) (image.Image, error) {
 	logrus.Debugf("converting image payload of size: %d bytes", len(payload))
@@ -75,28 +85,20 @@ func (c *Converter) FromPayload(payload []byte) (image.Image, error) {
 		return nil, err
 	}
 
-	roi := src
-	if !c.roiCropEnabled {
-		logrus.Debugf("digit strip roi cropping is disabled, using full image")
-	} else if rect := detectDigitStripROI(src); rect != nil {
-		roi = imaging.Crop(src, *rect)
-		if roi.Bounds().Dy() > 0 && roi.Bounds().Dy() < roiTargetHeight {
-			scale := float64(roiTargetHeight) / float64(roi.Bounds().Dy())
-			roi = imaging.Resize(
-				roi,
-				int(float64(roi.Bounds().Dx())*scale),
-				roiTargetHeight,
-				imaging.Lanczos,
-			)
-		}
-		logrus.Debugf("detected digit strip roi: %v", *rect)
-	} else {
-		logrus.Debugf("no digit strip roi detected, using full image")
+	if c.rotationDegrees != 0 {
+		src = imaging.Rotate(src, c.rotationDegrees, color.Black)
 	}
 
-	img := imaging.AdjustGamma(roi, GammaLevel)
-	img = imaging.AdjustContrast(img, ContrastLevel)
-	img = imaging.Sharpen(img, SharpenLevel)
+	smoothed := imaging.Blur(src, deblockSigma)
+	img := stretchLevels(smoothed)
+
+	if rect := detectDigitStripROI(src); rect != nil {
+		logrus.Debugf("detected digit strip roi: %v", *rect)
+		strip := imaging.Resize(imaging.Crop(smoothed, *rect), img.Bounds().Dx(), 0, imaging.CatmullRom)
+		img = stack(img, stretchLevels(strip))
+	} else {
+		logrus.Debugf("no digit strip roi detected, using full image only")
+	}
 
 	logrus.Debugf(
 		"converted image: original size=%dx%d, processed size=%dx%d",
@@ -230,13 +232,90 @@ func floodFill(mask [][]bool, visited [][]bool, width, height int, start point) 
 	return image.Rect(minX, minY, maxX+1, maxY+1), area
 }
 
-// Encode takes an image.Image object and encodes it into a byte slice in JPEG format with a specified quality level.
+// stretchLevels linearly maps the image's low/high luminance percentiles to black/white, applying
+// the same mapping to every channel so hues (e.g. the red decimal wheels) are preserved.
+// img: The image to stretch.
+func stretchLevels(img image.Image) image.Image {
+	var hist [histogramBins]int
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			hist[luma(img.At(x, y))]++
+		}
+	}
+
+	total := bounds.Dx() * bounds.Dy()
+	lo, hi := percentile(hist, total, levelsLowPercentile), percentile(hist, total, levelsHighPercentile)
+	if hi <= lo {
+		return img
+	}
+
+	scale := float64(maxChannel) / float64(hi-lo)
+	return imaging.AdjustFunc(img, func(c color.NRGBA) color.NRGBA {
+		return color.NRGBA{
+			R: stretchChannel(c.R, lo, scale),
+			G: stretchChannel(c.G, lo, scale),
+			B: stretchChannel(c.B, lo, scale),
+			A: c.A,
+		}
+	})
+}
+
+// stretchChannel maps a channel value v to (v-lo)*scale, clamped to the 8-bit range.
+// v: The channel value.
+// lo: The value mapped to 0.
+// scale: The multiplier applied after subtracting lo.
+func stretchChannel(v uint8, lo int, scale float64) uint8 {
+	return uint8(max(0, min(maxChannel, math.Round(float64(int(v)-lo)*scale))))
+}
+
+// percentile returns the smallest histogram bin at which the cumulative count exceeds fraction of total.
+// hist: The luminance histogram.
+// total: The total pixel count.
+// fraction: The percentile, in [0, 1].
+func percentile(hist [histogramBins]int, total int, fraction float64) int {
+	target := int(float64(total) * fraction)
+	cumulative := 0
+	for i, count := range hist {
+		cumulative += count
+		if cumulative > target {
+			return i
+		}
+	}
+	return histogramBins - 1
+}
+
+// luma returns the 8-bit BT.601 luma of c.
+// c: The color.
+func luma(c color.Color) int {
+	r, g, b, _ := c.RGBA()
+	y := lumaR*float64(r>>rgba64To8BitShift) +
+		lumaG*float64(g>>rgba64To8BitShift) +
+		lumaB*float64(b>>rgba64To8BitShift)
+	return min(maxChannel, int(math.Round(y)))
+}
+
+// stack places top above bottom in a single image of their combined height and the width of the wider one.
+// top: The upper image.
+// bottom: The lower image.
+func stack(top, bottom image.Image) image.Image {
+	out := imaging.New(
+		max(top.Bounds().Dx(), bottom.Bounds().Dx()),
+		top.Bounds().Dy()+bottom.Bounds().Dy(),
+		color.Black,
+	)
+	out = imaging.Paste(out, top, image.Pt(0, 0))
+	return imaging.Paste(out, bottom, image.Pt(0, top.Bounds().Dy()))
+}
+
+// Encode encodes an image.Image losslessly as PNG, so no second generation of JPEG compression
+// artifacts is added on top of the camera's own.
 // image: The image.Image object to be encoded.
 func (c *Converter) Encode(image image.Image) ([]byte, error) {
 	logrus.Debugf("encoding image: size=%dx%d", image.Bounds().Dx(), image.Bounds().Dy())
 
 	var buf bytes.Buffer
-	err := jpeg.Encode(&buf, image, &jpeg.Options{Quality: QualityLevel})
+	err := png.Encode(&buf, image)
 
 	logrus.Debugf("encoded image: size=%d bytes", len(buf.Bytes()))
 

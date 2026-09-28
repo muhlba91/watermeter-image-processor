@@ -10,12 +10,15 @@
 
 Water Meter Image Processor is a Go-based service designed to process images from water meters (e.g., captured via ESP32-CAM), use an AI provider to read the meter value, and publish the results to MQTT for Home Assistant. It integrates seamlessly with Home Assistant via MQTT Discovery.
 
+> [!NOTE]
+> This project was co-developed with the help of AI coding assistants. All changes are reviewed and tested by the maintainer.
+
 ---
 
 ## Features
 
 - **AI-Powered OCR**: Supports multiple AI providers — Google Gemini, OpenAI, Anthropic, Mistral, and any OpenAI-compatible proxy (e.g., LiteLLM, Ollama, vLLM) — to interpret water meter readings from images.
-- **Smart Image Preprocessing**: Automatically detects the meter's digit display (by the red decimal wheels' hue) and crops, upscales, and enhances contrast/sharpness before sending it to the AI provider, improving reading accuracy on dim or low-resolution photos.
+- **Image Preprocessing**: Smooths out JPEG compression artifacts and normalizes the brightness of dim frames, then stacks an enlarged crop of the digit wheels (located by the red decimal wheels' hue) below the full image, so the AI provider sees both the whole meter for context and the digits in detail. Answers with the wrong number of digits are rejected instead of published.
 - **MQTT Integration**: Subscribes to an image topic and publishes the processed readings.
 - **Home Assistant Discovery**: Automatically creates a sensor in Home Assistant for easy monitoring.
 - **Image Storage**: Persists processed images to a local file path (default) or Scaleway Object Storage (S3 compatible).
@@ -45,9 +48,9 @@ Configure the application using the following environment variables:
 
 ### Image Processing
 
-| Variable                 | Description                                                                                                                                                                                                             | Default |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `IMAGE_ROI_CROP_ENABLED` | Automatically detect the red decimal digit wheels by hue and crop/upscale the image to the inferred digit strip before enhancement. Falls back to the full image if no digit strip is detected, or if this is disabled. | `true`  |
+| Variable                 | Description                                                                                                                                                                     | Default |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `IMAGE_ROTATION_DEGREES` | Counter-clockwise rotation, in degrees, applied to every image to level the digit wheels if the camera is not mounted straight. Tilted digit wheels are misread far more often. | `0`     |
 
 ### AI Provider
 
@@ -240,6 +243,45 @@ You can simulate a water meter sending an image using the provided Python script
    ```
 
 Replace `tele/water-meter/image` with the topic corresponding to your `METER_ID` (default is `water-meter`).
+
+### 3. Measure Reading Accuracy
+
+`cmd/eval` sends the test images in `testing/images/` through the same preprocessing as the processor to one or more AI providers, repeatedly, and reports how often each provider reads the expected value and how consistent its answers are. It reads the API keys, models, and `IMAGE_ROTATION_DEGREES` from the same environment variables as the processor. Use it to verify any change to the preprocessing, the prompt, or a model before deploying it.
+
+```shell
+make eval
+make eval EVAL_ARGS="-providers gemini,mistral -images watermeter.jpg -repeats 10 -v"
+```
+
+| Flag         | Description                                                                             | Default                           |
+| ------------ | --------------------------------------------------------------------------------------- | --------------------------------- |
+| `-providers` | Comma-separated providers to evaluate.                                                  | `gemini,openai,anthropic,mistral` |
+| `-images`    | Comma-separated substrings; only images whose file name contains one are evaluated.     | *(all)*                           |
+| `-repeats`   | Calls per image and provider.                                                           | `5`                               |
+| `-parallel`  | Concurrent calls per provider.                                                          | `3`                               |
+| `-csv`       | Write the raw results to a CSV file.                                                    | *(none)*                          |
+| `-dump`      | Write the preprocessed images, as sent to the providers, to a directory for inspection. | *(none)*                          |
+| `-v`         | Log the raw provider responses.                                                         | `false`                           |
+
+The test images, their accepted readings, and what each one tests are listed in `testing/images/manifest.json`:
+
+| Image                | Purpose                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `../watermeter.jpg`  | Real worst case: level, very dark, heavily compressed ESP32-CAM frame. All providers must pass. |
+| `level-lit-q90.jpg`  | Control: an ideal frame. A failure here is a regression.                                        |
+| `level-lit-q10.jpg`  | Good lighting, heavy JPEG compression.                                                          |
+| `level-dark-q30.jpg` | Under-exposed, moderate JPEG compression.                                                       |
+| `level-dark-q10.jpg` | Stretch target, harder than the real worst case: under-exposed and heavily compressed.          |
+| `tilted-lit-q30.jpg` | Camera ~26° off level; run with `IMAGE_ROTATION_DEGREES=-26` to verify the rotation setting.    |
+
+All but `watermeter.jpg` are ESP32-CAM-like 800x600 frames generated from a high-quality photo (reading `667.38`), which is not part of the repository. `make eval-images` recreates exactly this set from it; the crops, rotation, and variants are defined in the `Makefile`:
+
+```shell
+# convert the DNG to PNG first, e.g. on macOS: sips -s format png photo.dng --out photo.png
+make eval-images SRC=photo.png
+```
+
+To generate other images, call the generator directly: `-framing name=x,y,w,h[@degrees]` defines a crop of the source photo, optionally rotated counter-clockwise. Each `-variant framing:lighting:quality` writes `<framing>-<lighting>-q<quality>.jpg`, where `lit` keeps the photo's exposure and `dark` scales it to the `-dark-mean` luminance (default `28`, matching `watermeter.jpg`). Regenerating keeps the notes of existing manifest entries.
 
 ---
 

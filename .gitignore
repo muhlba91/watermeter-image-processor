@@ -209,6 +209,7 @@ dist
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode,node,yarn,pulumi
 
 local.env
+testing/*.dng
 covprofile
 coverage.html
 bin/
