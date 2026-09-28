@@ -1,0 +1,510 @@
+---
+# ESPHome package for the watermeter camera: include it from a device configuration and override its
+# substitutions there, see testing/esphome.yaml:
+#   packages:
+#     watermeter_camera: github://muhlba91/watermeter-image-processor/esphome/watermeter-camera.yaml@<tag>
+# The device configuration provides the connection settings (wifi_ssid, wifi_password,
+# mqtt_broker_address, ota_password), e.g. from its own secrets.
+#
+# Battery-powered ESP32-CAM water meter camera. It sleeps almost all the time and, per wake-up:
+#   1. releases the pin holds of the previous deep sleep and reads the battery before Wi-Fi starts
+#   2. switches on the flash LED (if enabled) and streams camera frames while Wi-Fi and MQTT
+#      connect, discarding the first frames until auto exposure and white balance have settled
+#   3. publishes the next frame to ${image_topic} as soon as MQTT is connected
+#   4. switches off the LED and camera, holds both pins off, and deep sleeps
+# run_duration caps every wake-up: the device goes back to sleep even if Wi-Fi, MQTT or the camera fail.
+#
+# Settings: the capture and exposure settings below (entity category "config") can be changed in Home
+# Assistant or over MQTT while the device sleeps: commands are published retained, so the broker keeps
+# them until the next wake-up, and the device persists them in flash. The device always starts with the
+# persisted values; a value changed during a wake-up applies from the next wake-up on for the flash LED,
+# and immediately for all others. The substitutions below are only the initial values.
+#
+# OTA updates: the device is only awake for a few seconds. To update it:
+#   1. turn on "Maintenance Mode" in Home Assistant, or press the button on GPIO13: the device stays
+#      awake from its next wake-up on (the button wakes it up immediately)
+#   2. if firmware_manifest_url is set, the device installs a newer firmware from it by itself.
+#      Otherwise, install the update over the air once it is awake, e.g. with the IP looked up via MQTT:
+#        esphome run <device configuration>.yaml --device MQTTIP
+#   3. the first boot of a higher firmware_version switches maintenance mode off and the device goes
+#      back to sleep; otherwise, turn "Maintenance Mode" off yourself
+# Maintenance mode switches itself off after ${maintenance_timeout}, so a forgotten switch cannot drain
+# the battery.
+
+substitutions:
+  # firmware version, shown in Home Assistant and compared with the manifest's version: set it to the
+  # build date with every build (also after an ESPHome upgrade). Keep the fixed-width format
+  # YYYY.MM.DD[.NN]: versions are compared as strings, so e.g. "1.10.0" would sort before "1.9.0".
+  firmware_version: "2026.09.28"
+  # URL of the ESPHome firmware manifest (manifest.json) to update from in maintenance mode. The
+  # firmware contains the Wi-Fi, MQTT and OTA secrets: host it only where you alone can reach it (e.g.
+  # a server on your LAN or a private bucket), never at a public URL. HTTPS certificates must be
+  # signed by a public CA. Empty to skip the check and wait for a manual update.
+  firmware_manifest_url: ""
+  meter_id: water-meter # match this with METER_ID
+  friendly_name: Water Meter # match this with METER_NAME
+  image_topic: tele/${meter_id}/image # match this with BROKER_TOPIC_SUBSCRIPTION_TEMPLATE
+  maintenance_command_topic: tele/${meter_id}/maintenance_mode/command
+  # maximum time the device stays awake in maintenance mode
+  maintenance_timeout: 30min
+  # connection settings, provided by the device configuration: wifi_ssid and mqtt_broker_address must
+  # be set, or the device cannot connect. An empty wifi_password connects to an open network, an empty
+  # ota_password disables OTA authentication.
+  wifi_ssid: ""
+  wifi_password: ""
+  mqtt_broker_address: ""
+  ota_password: ""
+  # maximum time awake per wake-up, even if Wi-Fi, MQTT or the camera fail
+  run_duration: 60s
+  # initial settings, see "Settings" above
+  initial_sleep_minutes: "360"
+  initial_warmup_frames: "10"
+  initial_flash_brightness: "0"
+  # battery measurement: voltage divider ratio ((R1 + R2) / R2) and the voltages mapped to 0% / 100%
+  battery_divider_ratio: "2.0"
+  battery_empty_voltage: "3.3"
+  battery_full_voltage: "4.2"
+
+esphome:
+  name: ${meter_id}
+  friendly_name: ${friendly_name}
+  project:
+    name: muhlba91.watermeter-camera
+    version: ${firmware_version}
+    # first boot after an update to a higher version (compared as strings): maintenance is done,
+    # switch it off once MQTT is connected
+    on_update:
+      - globals.set:
+          id: firmware_updated
+          value: "true"
+      - logger.log:
+          format: "Updated from firmware %s"
+          args: [version.c_str()]
+  on_boot:
+    # before any component is set up: release the pin holds of the previous deep sleep, otherwise the
+    # camera stays powered down and the flash LED cannot be driven
+    - priority: 1000
+      then:
+        - lambda: |-
+            gpio_hold_dis(GPIO_NUM_32);
+            gpio_hold_dis(GPIO_NUM_4);
+            gpio_deep_sleep_hold_dis();
+    # after the ADC is set up (600), but before Wi-Fi starts (250) and its current draw pulls the
+    # battery voltage down
+    - priority: 500
+      then:
+        - component.update: battery_voltage
+    # after all components are set up and the settings restored: apply them and start capturing
+    # while Wi-Fi and MQTT connect
+    - priority: -100
+      then:
+        - lambda: |-
+            id(button_wakeup) = esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0;
+            id(ds).set_sleep_duration(id(sleep_minutes).state * 60 * 1000);
+        - component.update: firmware_version
+        - script.execute: apply_exposure
+        - output.set_level:
+            id: flash_led
+            level: !lambda return id(flash_brightness).state / 100.0f;
+        - lambda: |-
+            id(meter_camera).start_stream(esphome::camera::CameraRequester::IDLE);
+  on_shutdown:
+    # runs right before deep sleep: power down the camera and switch off the flash LED, and hold both
+    # pins so they neither float nor draw current while sleeping
+    then:
+      - lambda: |-
+          gpio_set_level(GPIO_NUM_32, 1);
+          gpio_hold_en(GPIO_NUM_32);
+          gpio_reset_pin(GPIO_NUM_4);
+          gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
+          gpio_set_level(GPIO_NUM_4, 0);
+          gpio_hold_en(GPIO_NUM_4);
+          gpio_deep_sleep_hold_en();
+
+esp32:
+  board: esp32cam
+  framework:
+    type: esp-idf
+
+ota:
+  - platform: esphome
+    password: ${ota_password}
+  - platform: http_request
+
+http_request:
+
+update:
+  - platform: http_request
+    id: firmware_update
+    name: Firmware
+    # placeholder, replaced by firmware_manifest_url before a check; never requested while it is empty
+    source: https://firmware.invalid/manifest.json
+    update_interval: never
+    on_update_available:
+      - logger.log: "Installing firmware update"
+      - update.perform: firmware_update
+
+# debug configuration: verbose logs, also published to tele/${meter_id}/debug over MQTT
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+psram:
+
+globals:
+  - id: frames_captured
+    type: int
+    initial_value: "0"
+  - id: image_published
+    type: bool
+    initial_value: "false"
+  - id: button_wakeup
+    type: bool
+    initial_value: "false"
+  - id: firmware_updated
+    type: bool
+    initial_value: "false"
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+  fast_connect: true
+  # never reboot on connection loss: run_duration puts the device back to sleep instead
+  reboot_timeout: 0s
+  # a static IP skips the DHCP handshake, saving roughly a second per wake-up, but requires a fixed
+  # address reserved for the device:
+  # manual_ip:
+  #   static_ip: 192.168.1.50
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+  #   dns1: 192.168.1.1
+
+mqtt:
+  id: mqtt_client
+  broker: ${mqtt_broker_address}
+  topic_prefix: tele/${meter_id}
+  discovery: true
+  discovery_prefix: homeassistant
+  # no online/offline status: the device sleeps almost all the time, and Home Assistant should keep
+  # showing the last (retained) values instead of marking the entities unavailable
+  birth_message:
+  will_message:
+  shutdown_message:
+  # publishes the device's IP to esphome/discover/${meter_id}, so OTA updates can find the device
+  # without a static IP (--device MQTTIP)
+  discover_ip: true
+  on_connect:
+    - if:
+        condition:
+          lambda: return id(firmware_updated);
+        then:
+          - mqtt.publish:
+              topic: ${maintenance_command_topic}
+              payload: "OFF"
+              qos: 1
+              retain: true
+    # woken up by the button: switch maintenance mode on, the same way Home Assistant does
+    - if:
+        condition:
+          lambda: return id(button_wakeup);
+        then:
+          - mqtt.publish:
+              topic: ${maintenance_command_topic}
+              payload: "ON"
+              qos: 1
+              retain: true
+
+esp32_camera:
+  id: meter_camera
+  external_clock:
+    pin: GPIO0
+    frequency: 20MHz
+  i2c_id: camera_i2c
+  data_pins:
+    - GPIO5
+    - GPIO18
+    - GPIO19
+    - GPIO21
+    - GPIO36
+    - GPIO39
+    - GPIO34
+    - GPIO35
+  vsync_pin: GPIO25
+  href_pin: GPIO23
+  pixel_clock_pin: GPIO22
+  power_down_pin: GPIO32
+  name: Raw Image
+  resolution: 800x600
+  jpeg_quality: 10
+  frame_buffer_count: 1
+  frame_buffer_location: PSRAM
+  idle_framerate: 0 fps
+  # exposure is applied from the settings entities, see the apply_exposure script
+  on_image:
+    then:
+      - lambda: id(frames_captured) += 1;
+      - if:
+          condition:
+            lambda: |-
+              return !id(image_published) && id(frames_captured) > id(warmup_frames).state &&
+                     id(mqtt_client).is_connected();
+          then:
+            - lambda: |-
+                // publish straight from the frame buffer, without copying the JPEG into internal RAM;
+                // QoS 1 so the broker acknowledges it
+                id(image_published) = id(mqtt_client).publish(
+                    std::string("${image_topic}"), reinterpret_cast<const char *>(image.data),
+                    image.length, 1, false);
+                if (id(image_published)) {
+                  id(meter_camera).stop_stream(esphome::camera::CameraRequester::IDLE);
+                  ESP_LOGI("meter", "Published image: %u bytes, frame %d", (unsigned) image.length,
+                           id(frames_captured));
+                } else {
+                  ESP_LOGW("meter", "Failed to publish image, retrying with the next frame");
+                }
+            - if:
+                condition:
+                  lambda: return id(image_published);
+                then:
+                  - output.turn_off: flash_led
+                  # let the broker acknowledge the QoS 1 publish before the connection is closed
+                  - delay: 500ms
+                  - if:
+                      condition:
+                        # a button wake-up switches maintenance mode on as soon as MQTT delivers it
+                        lambda: return !id(maintenance_mode).state && !id(button_wakeup);
+                      then:
+                        - script.execute: enter_sleep
+                      else:
+                        - logger.log: "Maintenance mode: staying awake"
+
+# camera control bus (SCCB)
+i2c:
+  - id: camera_i2c
+    sda: GPIO26
+    scl: GPIO27
+    scan: false
+
+output:
+  - platform: ledc
+    id: flash_led
+    pin: GPIO4
+    channel: 2
+
+sensor:
+  # TEST ONLY: GPIO33 drives the board's onboard red LED and is not connected to the battery; it is
+  # read to see that the board works. It is the only ADC1 pin the camera leaves free (ADC2 pins do
+  # not work while Wi-Fi is on): for a real measurement, remove the red LED, connect the battery
+  # through a voltage divider, and set battery_divider_ratio.
+  - platform: adc
+    pin: GPIO33
+    id: battery_voltage
+    name: Battery Voltage
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    attenuation: 12db
+    samples: 16
+    update_interval: never
+    filters:
+      - multiply: ${battery_divider_ratio}
+  - platform: copy
+    source_id: battery_voltage
+    id: battery_level
+    name: Battery
+    device_class: battery
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    filters:
+      - calibrate_linear:
+          - ${battery_empty_voltage} -> 0
+          - ${battery_full_voltage} -> 100
+      - clamp:
+          min_value: 0
+          max_value: 100
+
+deep_sleep:
+  id: ds
+  run_duration:
+    default: ${run_duration}
+    # woken up by the button: stay awake for manual maintenance even if MQTT is unreachable
+    gpio_wakeup_reason: ${maintenance_timeout}
+  # maintenance button between GPIO13 and GND
+  wakeup_pin:
+    number: GPIO13
+    mode:
+      input: true
+      pullup: true
+    inverted: true
+  sleep_duration: ${initial_sleep_minutes}min
+
+script:
+  # enters deep sleep for the configured reading interval
+  - id: enter_sleep
+    then:
+      - deep_sleep.enter:
+          id: ds
+          sleep_duration: !lambda return id(sleep_minutes).state * 60 * 1000;
+  # installs a newer firmware from firmware_manifest_url, if set (see update.on_update_available)
+  - id: check_firmware_update
+    then:
+      - if:
+          condition:
+            lambda: return std::string("${firmware_manifest_url}").empty();
+          then:
+            - logger.log: "No firmware manifest URL: waiting for a manual update"
+          else:
+            - lambda: id(firmware_update).set_source_url("${firmware_manifest_url}");
+            - update.check: firmware_update
+  # switches maintenance mode off after the timeout, by clearing the retained command on the broker
+  # (which the device receives itself), so Home Assistant shows it switched off as well
+  - id: maintenance_timeout
+    mode: restart
+    then:
+      - delay: ${maintenance_timeout}
+      - logger.log: "Maintenance mode timed out"
+      - mqtt.publish:
+          topic: ${maintenance_command_topic}
+          payload: "OFF"
+          qos: 1
+          retain: true
+  # applies the exposure settings to the camera; a no-op until the camera is initialized
+  - id: apply_exposure
+    then:
+      - lambda: |-
+          auto *camera = id(meter_camera);
+          camera->set_ae_level(static_cast<int>(id(ae_level).state));
+          camera->set_aec2(id(aec2).state);
+          auto index = id(agc_gain_ceiling).active_index();
+          if (index.has_value()) {
+            // the options are listed in the order of the ESP32AgcGainCeiling values
+            camera->set_agc_gain_ceiling(static_cast<esp32_camera::ESP32AgcGainCeiling>(*index));
+          }
+          camera->update_camera_parameters();
+
+# Settings, changeable at runtime (see "Settings" at the top). Out-of-range values are rejected.
+number:
+  - platform: template
+    id: sleep_minutes
+    name: Reading Interval
+    icon: mdi:timer-sand
+    entity_category: config
+    unit_of_measurement: min
+    mode: box
+    min_value: 5
+    max_value: 1440
+    step: 5
+    initial_value: ${initial_sleep_minutes}
+    optimistic: true
+    restore_value: true
+    command_retain: true
+  - platform: template
+    id: warmup_frames
+    name: Warm-up Frames
+    icon: mdi:camera-timer
+    entity_category: config
+    mode: box
+    min_value: 0
+    max_value: 50
+    step: 1
+    initial_value: ${initial_warmup_frames}
+    optimistic: true
+    restore_value: true
+    command_retain: true
+  - platform: template
+    id: flash_brightness
+    name: Flash Brightness
+    icon: mdi:flashlight
+    entity_category: config
+    unit_of_measurement: "%"
+    mode: slider
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: ${initial_flash_brightness}
+    optimistic: true
+    restore_value: true
+    command_retain: true
+  - platform: template
+    id: ae_level
+    name: Exposure Level
+    icon: mdi:brightness-6
+    entity_category: config
+    mode: slider
+    min_value: -2
+    max_value: 2
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    command_retain: true
+    on_value:
+      - script.execute: apply_exposure
+
+switch:
+  - platform: template
+    id: maintenance_mode
+    name: Maintenance Mode
+    icon: mdi:wrench-clock
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    command_topic: ${maintenance_command_topic}
+    command_retain: true
+    on_turn_on:
+      - deep_sleep.prevent: ds
+      - script.execute: maintenance_timeout
+      - logger.log: "Maintenance mode: staying awake for up to ${maintenance_timeout}"
+      - script.execute: check_firmware_update
+    on_turn_off:
+      - script.stop: maintenance_timeout
+      - deep_sleep.allow: ds
+      - if:
+          condition:
+            lambda: return id(image_published);
+          then:
+            - script.execute: enter_sleep
+  - platform: template
+    id: aec2
+    name: Night Exposure (AEC2)
+    icon: mdi:weather-night
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    command_retain: true
+    on_turn_on:
+      - script.execute: apply_exposure
+    on_turn_off:
+      - script.execute: apply_exposure
+
+text_sensor:
+  - platform: template
+    id: firmware_version
+    name: Firmware Version
+    icon: mdi:package-variant
+    entity_category: diagnostic
+    update_interval: never
+    lambda: return {ESPHOME_PROJECT_VERSION};
+
+select:
+  - platform: template
+    id: agc_gain_ceiling
+    name: Gain Ceiling
+    icon: mdi:tune-vertical
+    entity_category: config
+    options:
+      - 2X
+      - 4X
+      - 8X
+      - 16X
+      - 32X
+      - 64X
+      - 128X
+    initial_option: 2X
+    optimistic: true
+    restore_value: true
+    command_retain: true
+    on_value:
+      - script.execute: apply_exposure

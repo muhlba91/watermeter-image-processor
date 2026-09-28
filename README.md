@@ -211,6 +211,27 @@ docker run -d \
 
 ---
 
+## ESP32-CAM Firmware (ESPHome)
+
+`esphome/watermeter-camera.yaml` is an [ESPHome](https://esphome.io/) package for a battery-powered ESP32-CAM (AI-Thinker) that sends images of the meter to this service. It deep sleeps between readings and only wakes up briefly to capture and publish an image. Its settings (reading interval, flash LED, exposure) and a maintenance mode for OTA updates are available in Home Assistant via MQTT discovery. The comments in the package describe all of it.
+
+Include the package from a device configuration and override its substitutions there. `testing/esphome.yaml` is a ready-to-use reference:
+
+```yaml
+substitutions:
+  meter_id: water-meter # match this with METER_ID
+  friendly_name: Water Meter # match this with METER_NAME
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  mqtt_broker_address: !secret mqtt_broker_address
+  ota_password: !secret ota_password
+
+packages:
+  watermeter_camera: github://muhlba91/watermeter-image-processor/esphome/watermeter-camera.yaml@<tag>
+```
+
+---
+
 ## Testing
 
 The repository includes a `testing/` directory to help you verify the setup locally.

@@ -1,0 +1,2 @@
+# ESPHome version the package is verified against in CI (see .github/workflows/verify.yml)
+FROM ghcr.io/esphome/esphome:2026.9.0@sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad
