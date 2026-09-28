@@ -24,6 +24,8 @@ type openAICompatBase struct {
 	temperature *float64
 	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
 	modelCache *modelCache
+	// maxResponseTokens is the maximum number of tokens the model may generate per image.
+	maxResponseTokens int32
 }
 
 // newOpenAICompatBase creates a new openAICompatBase.
@@ -32,12 +34,14 @@ type openAICompatBase struct {
 // providerName: A human-readable label used in log and error messages.
 // temperature: The sampling temperature to request, or nil to leave it unset.
 // modelCheckCacheTTL: How long a CheckModel result is cached before being re-verified.
+// maxResponseTokens: The maximum number of tokens the model may generate per image.
 func newOpenAICompatBase(
 	client *openai.Client,
 	model string,
 	providerName string,
 	temperature *float64,
 	modelCheckCacheTTL time.Duration,
+	maxResponseTokens int32,
 ) *openAICompatBase {
 	return &openAICompatBase{
 		client:       client,
@@ -45,6 +49,8 @@ func newOpenAICompatBase(
 		providerName: providerName,
 		temperature:  temperature,
 		modelCache:   newModelCache(providerName, modelCheckCacheTTL),
+
+		maxResponseTokens: maxResponseTokens,
 	}
 }
 
@@ -105,7 +111,7 @@ func (o *openAICompatBase) ProcessImage(ctx context.Context, image []byte) (*str
 
 	params := openai.ChatCompletionNewParams{
 		Model:               o.model,
-		MaxCompletionTokens: openai.Int(maxResponseTokens),
+		MaxCompletionTokens: openai.Int(int64(o.maxResponseTokens)),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage([]openai.ChatCompletionContentPartUnionParam{
 				openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{

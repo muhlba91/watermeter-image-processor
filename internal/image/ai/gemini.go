@@ -26,6 +26,8 @@ type Gemini struct {
 	model string
 	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
 	modelCache *modelCache
+	// maxResponseTokens is the maximum number of tokens the model may generate per image.
+	maxResponseTokens int32
 }
 
 // NewGemini creates a new instance of Gemini.
@@ -44,6 +46,8 @@ func NewGemini(configuration *configuration.Data) (ImageAI, error) {
 		client:     client,
 		model:      configuration.GeminiModel,
 		modelCache: newModelCache(ProviderGemini, configuration.ModelCheckCacheTTL),
+
+		maxResponseTokens: configuration.ModelMaxResponseTokens,
 	}, nil
 }
 
@@ -102,7 +106,7 @@ func (o *Gemini) ProcessImage(ctx context.Context, image []byte) (*string, error
 	temperature := float32(0.0)
 	config := &genai.GenerateContentConfig{
 		Temperature:     &temperature,
-		MaxOutputTokens: maxResponseTokens,
+		MaxOutputTokens: o.maxResponseTokens,
 	}
 
 	contents := []*genai.Content{

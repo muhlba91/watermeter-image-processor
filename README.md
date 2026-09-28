@@ -56,10 +56,11 @@ Configure the application using the following environment variables:
 
 Use `MODEL_PROVIDER` to select the active provider. Only the variables for the chosen provider need to be set.
 
-| Variable                | Description                                                                                                                               | Default  |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `MODEL_PROVIDER`        | AI provider to use: `gemini`, `openai`, `anthropic`, `mistral`, or `openai_compat`.                                                       | `gemini` |
-| `MODEL_CHECK_CACHE_TTL` | How long a provider's model-availability check is cached before being re-verified, instead of re-listing models on every processed image. | `5m`     |
+| Variable                    | Description                                                                                                                                                                    | Default  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `MODEL_PROVIDER`            | AI provider to use: `gemini`, `openai`, `anthropic`, `mistral`, or `openai_compat`.                                                                                            | `gemini` |
+| `MODEL_CHECK_CACHE_TTL`     | How long a provider's model-availability check is cached before being re-verified, instead of re-listing models on every processed image.                                      | `5m`     |
+| `MODEL_MAX_RESPONSE_TOKENS` | Maximum number of tokens the model may generate per image, including the hidden reasoning of reasoning models. Too low a limit can cut off the answer, which is then rejected. | `4096`   |
 
 #### Google Gemini (`gemini`)
 
@@ -99,7 +100,7 @@ Use this provider to connect to any OpenAI API-compatible endpoint such as [Lite
 | ----------------------- | ---------------------------------------------------- | -------------------------- |
 | `OPENAI_COMPAT_URL`     | Base URL of the OpenAI-compatible endpoint.          | `http://localhost:4000`    |
 | `OPENAI_COMPAT_API_KEY` | API key for the endpoint (if required).              | *(optional)*               |
-| `OPENAI_COMPAT_MODEL`   | Model name to use via the compatible endpoint.       | `gemini-flash-lite-latest` |
+| `OPENAI_COMPAT_MODEL`   | Model name to use via the compatible endpoint.       | `glm-flash-latest`         |
 
 ### Image Storage
 

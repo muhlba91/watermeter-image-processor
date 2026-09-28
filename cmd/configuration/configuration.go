@@ -35,6 +35,10 @@ type Data struct {
 	ImageRotationDegrees float64 `env:"IMAGE_ROTATION_DEGREES" envDefault:"0"`
 	// ModelCheckCacheTTL defines how long a provider's model-availability check result is cached before being re-verified
 	ModelCheckCacheTTL time.Duration `env:"MODEL_CHECK_CACHE_TTL" envDefault:"5m"`
+	// ModelMaxResponseTokens is the maximum number of tokens the model may generate per image, including
+	// the hidden reasoning tokens of reasoning models; it must leave room for the per-wheel reasoning and
+	// the final answer requested by the prompt
+	ModelMaxResponseTokens int32 `env:"MODEL_MAX_RESPONSE_TOKENS" envDefault:"4096"`
 	// GeminiAPIKey is the API key for the Gemini server to connect to for image processing
 	GeminiAPIKey string `env:"GEMINI_API_KEY"`
 	// GeminiModel is the name of the Gemini model to be used for image processing
@@ -56,7 +60,7 @@ type Data struct {
 	// OpenAICompatAPIKey is the optional API key for the OpenAI-compatible proxy server
 	OpenAICompatAPIKey string `env:"OPENAI_COMPAT_API_KEY"`
 	// OpenAICompatModel is the name of the model to be used via the OpenAI-compatible proxy for image processing
-	OpenAICompatModel string `env:"OPENAI_COMPAT_MODEL" envDefault:"gemini-flash-lite-latest"`
+	OpenAICompatModel string `env:"OPENAI_COMPAT_MODEL" envDefault:"glm-flash-latest"`
 	// StorageProvider selects where processed images are persisted
 	StorageProvider string `env:"STORAGE_PROVIDER" envDefault:"file"`
 	// SCWRegion is the Scaleway region to use for the S3 client, which is required for connecting to Scaleway's S3-compatible object storage service

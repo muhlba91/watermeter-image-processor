@@ -34,6 +34,7 @@ func NewOpenAICompat(configuration *configuration.Data) (ImageAI, error) {
 			ProviderOpenAICompat,
 			nil,
 			configuration.ModelCheckCacheTTL,
+			configuration.ModelMaxResponseTokens,
 		),
 	}, nil
 }

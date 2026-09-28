@@ -28,6 +28,7 @@ func NewOpenAI(configuration *configuration.Data) (ImageAI, error) {
 			ProviderOpenAI,
 			nil,
 			configuration.ModelCheckCacheTTL,
+			configuration.ModelMaxResponseTokens,
 		),
 	}, nil
 }

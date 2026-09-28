@@ -36,6 +36,7 @@ func NewMistral(configuration *configuration.Data) (ImageAI, error) {
 			ProviderMistral,
 			&temperature,
 			configuration.ModelCheckCacheTTL,
+			configuration.ModelMaxResponseTokens,
 		),
 	}, nil
 }

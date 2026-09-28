@@ -25,6 +25,8 @@ type Anthropic struct {
 	model string
 	// modelCache caches the result of CheckModel for a TTL, avoiding a model list call on every image.
 	modelCache *modelCache
+	// maxResponseTokens is the maximum number of tokens the model may generate per image.
+	maxResponseTokens int32
 }
 
 // NewAnthropic creates a new instance of Anthropic.
@@ -38,6 +40,8 @@ func NewAnthropic(configuration *configuration.Data) (ImageAI, error) {
 		client:     &client,
 		model:      configuration.AnthropicModel,
 		modelCache: newModelCache(ProviderAnthropic, configuration.ModelCheckCacheTTL),
+
+		maxResponseTokens: configuration.ModelMaxResponseTokens,
 	}, nil
 }
 
@@ -96,7 +100,7 @@ func (o *Anthropic) ProcessImage(ctx context.Context, image []byte) (*string, er
 	logrus.Debugf("processing image with anthropic model: %s", o.model)
 	resp, err := o.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:       o.model,
-		MaxTokens:   maxResponseTokens,
+		MaxTokens:   int64(o.maxResponseTokens),
 		Temperature: anthropic.Float(anthropicTemperature),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(

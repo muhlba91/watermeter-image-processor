@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-// maxResponseTokens defines the maximum number of tokens each provider may generate for a response.
-// It must leave enough room for the model to reason about each digit wheel before giving its final
-// answer, per the chain-of-thought prompt in prompt.go.
-const maxResponseTokens = 2048
-
 // nonDigits matches every character that is not a decimal digit.
 var nonDigits = regexp.MustCompile(`[^0-9]`)
 
