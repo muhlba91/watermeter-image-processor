@@ -12,7 +12,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/openai/openai-go/v3 v3.69.0
 	github.com/sirupsen/logrus v1.10.2
-	google.golang.org/genai v1.71.0
+	google.golang.org/genai v1.72.0
 )
 
 require (
