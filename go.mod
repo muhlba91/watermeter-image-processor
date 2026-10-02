@@ -10,7 +10,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/disintegration/imaging v1.6.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/openai/openai-go/v3 v3.69.0
+	github.com/openai/openai-go/v3 v3.70.0
 	github.com/sirupsen/logrus v1.10.2
 	google.golang.org/genai v1.72.0
 )
