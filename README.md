@@ -81,7 +81,7 @@ Use `MODEL_PROVIDER` to select the active provider. Only the variables for the c
 | Variable             | Description                 | Default              |
 | -------------------- | --------------------------- | -------------------- |
 | `ANTHROPIC_API_KEY`  | Anthropic API key.          | *(required)*         |
-| `ANTHROPIC_MODEL`    | Anthropic model to use.     | `claude-haiku-4-5`   |
+| `ANTHROPIC_MODEL`    | Anthropic model to use.     | `claude-haiku-5-5`   |
 
 #### Mistral (`mistral`)
 

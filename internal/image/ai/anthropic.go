@@ -7,15 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/v2"
+	"github.com/anthropics/anthropic-sdk-go/v2/option"
 	"github.com/sirupsen/logrus"
 
 	"github.com/muhlba91/watermeter-image-processor/cmd/configuration"
 )
-
-// anthropicTemperature defines the sampling temperature for the Anthropic response, kept at 0 for deterministic, repeatable readings.
-const anthropicTemperature = 0.0
 
 // Anthropic is a struct that implements the ImageAI interface using the Anthropic library.
 type Anthropic struct {
@@ -99,9 +96,8 @@ func (o *Anthropic) ProcessImage(ctx context.Context, image []byte) (*string, er
 
 	logrus.Debugf("processing image with anthropic model: %s", o.model)
 	resp, err := o.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:       o.model,
-		MaxTokens:   int64(o.maxResponseTokens),
-		Temperature: anthropic.Float(anthropicTemperature),
+		Model:     o.model,
+		MaxTokens: int64(o.maxResponseTokens),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(
 				anthropic.NewImageBlockBase64(http.DetectContentType(image), encodedImage),

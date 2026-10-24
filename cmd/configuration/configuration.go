@@ -50,7 +50,7 @@ type Data struct {
 	// AnthropicAPIKey is the API key for the Anthropic server to connect to for image processing
 	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
 	// AnthropicModel is the name of the Anthropic model to be used for image processing
-	AnthropicModel string `env:"ANTHROPIC_MODEL" envDefault:"claude-haiku-4-5"`
+	AnthropicModel string `env:"ANTHROPIC_MODEL" envDefault:"claude-haiku-5-5"`
 	// MistralAPIKey is the API key for the Mistral server to connect to for image processing
 	MistralAPIKey string `env:"MISTRAL_API_KEY"`
 	// MistralModel is the name of the Mistral model to be used for image processing
