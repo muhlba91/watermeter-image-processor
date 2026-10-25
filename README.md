@@ -307,6 +307,12 @@ To generate other images, call the generator directly: `-framing name=x,y,w,h[@d
 
 ---
 
+## Development
+
+Tool versions (Go, golangci-lint, goreleaser) are managed with [mise](https://mise.jdx.dev): run `mise trust` and `mise install` once, then use the usual commands (`make ...`, `go test ./...`).
+
+---
+
 ## Contributors
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
