@@ -3,7 +3,7 @@ module github.com/muhlba91/watermeter-image-processor
 go 1.27.3
 
 require (
-	github.com/anthropics/anthropic-sdk-go/v2 v2.3.0
+	github.com/anthropics/anthropic-sdk-go/v2 v2.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
