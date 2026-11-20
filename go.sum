@@ -30,6 +30,8 @@ github.com/anthropics/anthropic-sdk-go/v2 v2.11.0 h1:5orsKgfTifesb4wRC4QU/qK8T7a
 github.com/anthropics/anthropic-sdk-go/v2 v2.11.0/go.mod h1:9MisVFnaVHMm4A8Pm1h75dsxyM3M8vv6NW9O5Tm2Q4k=
 github.com/anthropics/anthropic-sdk-go/v2 v2.12.0 h1:k5AHnteatEw2ZOF+xFWTu60hn2yAr+Yi9FF/5izmQGU=
 github.com/anthropics/anthropic-sdk-go/v2 v2.12.0/go.mod h1:9MisVFnaVHMm4A8Pm1h75dsxyM3M8vv6NW9O5Tm2Q4k=
+github.com/anthropics/anthropic-sdk-go/v2 v2.13.0 h1:IClHmLpdWZBOn8IrkDkQJuHinFlSa/URtkNECjXcgmE=
+github.com/anthropics/anthropic-sdk-go/v2 v2.13.0/go.mod h1:9MisVFnaVHMm4A8Pm1h75dsxyM3M8vv6NW9O5Tm2Q4k=
 github.com/aws/aws-sdk-go-v2 v1.47.4 h1:bTvk6UdSSSvaQsfLVj1JRDEEqj/PDRwGf1KanaRzau0=
 github.com/aws/aws-sdk-go-v2 v1.47.4/go.mod h1:XkrjAZvr705Nytv6PkPUhoSB2W9+vVHBp5oAWpkh8Ak=
 github.com/aws/aws-sdk-go-v2 v1.47.5 h1:5yA+A+BiXbDq1ZLbYwPViwhEGDMdR0MEhL8Jh2LnLS4=
