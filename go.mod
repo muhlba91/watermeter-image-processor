@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0
 	github.com/caarlos0/env/v11 v11.4.2
 	github.com/disintegration/imaging v1.6.2
-	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/eclipse/paho.mqtt.golang v1.5.2
 	github.com/openai/openai-go/v3 v3.105.0
 	github.com/sirupsen/logrus v1.10.2
 	google.golang.org/genai v1.79.1
