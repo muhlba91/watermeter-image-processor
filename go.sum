@@ -363,6 +363,8 @@ github.com/openai/openai-go/v3 v3.105.0 h1:XX0QDIaMlBDr9iYGKXGgWYFtOFF5ffO4Sqtfx
 github.com/openai/openai-go/v3 v3.105.0/go.mod h1:dYJy3sozy5kqizqdbtk1xKLr2WBPDaw8woVu+cWmQIA=
 github.com/openai/openai-go/v3 v3.106.0 h1:F5gWWDbF+tqE2tMz5OgntySQSRJJJAFPv4Ld9864nc0=
 github.com/openai/openai-go/v3 v3.106.0/go.mod h1:dYJy3sozy5kqizqdbtk1xKLr2WBPDaw8woVu+cWmQIA=
+github.com/openai/openai-go/v3 v3.107.0 h1:cXqJlu4vYGUHMCwgt5TmNo6WyvTdyiwjbO2A4BvUhHE=
+github.com/openai/openai-go/v3 v3.107.0/go.mod h1:dYJy3sozy5kqizqdbtk1xKLr2WBPDaw8woVu+cWmQIA=
 github.com/pb33f/ordered-map/v2 v2.3.1 h1:5319HDO0aw4DA4gzi+zv4FXU9UlSs3xGZ40wcP1nBjY=
 github.com/pb33f/ordered-map/v2 v2.3.1/go.mod h1:qxFQgd0PkVUtOMCkTapqotNgzRhMPL7VvaHKbd1HnmQ=
 github.com/segmentio/asm v1.1.3 h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
